@@ -1,5 +1,5 @@
 // src/index.js
-import * as PptxGenJSImport from 'pptxgenjs';
+import * as PptxGenJSImport from '@bapunhansdah/pptxgenjs';
 import html2canvas from 'html2canvas';
 import { PPTXEmbedFonts } from './font-embedder.js';
 import JSZip from 'jszip';
@@ -26,6 +26,8 @@ import {
   getUsedFontFamilies,
   getAutoDetectedFonts,
   extractTableData,
+  tempOverride,
+  getAccumulatedScale,
 } from './utils.js';
 import { getProcessedImage } from './image-processor.js';
 
@@ -40,6 +42,7 @@ const PX_TO_INCH = 1 / PPI;
  * @param {boolean} [options.skipDownload=false] - If true, prevents automatic download
  * @param {Object} [options.listConfig] - Config for bullets
  * @param {boolean} [options.svgAsVector=false] - If true, keeps SVG as vector (for Convert to Shape in PowerPoint)
+ * @param {number} [options.margin=0] - Slide margin as a fraction (e.g. 0.05 for 5% margin)
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
@@ -156,13 +159,35 @@ export async function exportToPptx(target, options = {}) {
  * @param {PptxGenJS} pptx - The main PPTX instance.
  */
 async function processSlide(root, slide, pptx, globalOptions = {}) {
+  // Reset transforms and opacity on parent elements to get accurate measurements and prevent capture issues.
+  const resets = [];
+
+  for (let p = root.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = window.getComputedStyle(p);
+    if (s.transform !== 'none' || s.zoom !== '1') {
+      resets.push(tempOverride(p, { transform: 'none', zoom: '1' }));
+    }
+  }
+
+  root.querySelectorAll('.fragment').forEach((f) => {
+    resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible' }));
+  });
+
+  // Brief timeout to let the browser recalculate styles after resetting transforms
+  await new Promise((r) => setTimeout(r, 0));
+
   const rootRect = root.getBoundingClientRect();
   const PPTX_WIDTH_IN = 10;
   const PPTX_HEIGHT_IN = 5.625;
 
   const contentWidthIn = rootRect.width * PX_TO_INCH;
   const contentHeightIn = rootRect.height * PX_TO_INCH;
-  const scale = Math.min(PPTX_WIDTH_IN / contentWidthIn, PPTX_HEIGHT_IN / contentHeightIn);
+
+  const marginPct = Math.max(0, globalOptions.margin ?? 0.02);
+  const targetW = PPTX_WIDTH_IN * (1 - marginPct * 2);
+  const targetH = PPTX_HEIGHT_IN * (1 - marginPct * 2);
+
+  const scale = Math.min(targetW / contentWidthIn, targetH / contentHeightIn);
 
   const layoutConfig = {
     rootX: rootRect.x,
@@ -176,21 +201,65 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const asyncTasks = []; // Queue for heavy operations (Images, Canvas)
   let domOrderCounter = 0;
 
+  // --- EXTRACT BACKGROUND ---
+  const getHex = (v) => { const c = parseColor(v); return (c?.hex && c.opacity > 0) ? c.hex : null; };
+  const rStyle = window.getComputedStyle(root);
+  const bStyle = window.getComputedStyle(document.body);
+  const slideBgColor = getHex(root.getAttribute('data-background-color')) || getHex(rStyle.backgroundColor) || getHex(bStyle.backgroundColor);
+  const slideBgImg = root.getAttribute('data-background-image') || rStyle.backgroundImage?.match(/url\(["']?(.*?)["']?\)/)?.[1];
+  const slideBgTransparency = (1 - (parseFloat(root.getAttribute('data-background-opacity')) || 1)) * 100;
+
+  if (slideBgColor) {
+    renderQueue.push({
+      type: 'shape', zIndex: -10000, domOrder: -2, shapeType: pptx.ShapeType.rect,
+      options: { x: 0, y: 0, w: PPTX_WIDTH_IN, h: PPTX_HEIGHT_IN, fill: { color: slideBgColor } }
+    });
+  }
+
+  if (slideBgImg) {
+    const item = { type: 'image', zIndex: -9999, domOrder: -1, options: { x: 0, y: 0, w: PPTX_WIDTH_IN, h: PPTX_HEIGHT_IN, transparency: slideBgTransparency, data: null } };
+    renderQueue.push(item);
+    asyncTasks.push(async () => {
+      item.options.data = await getProcessedImage(slideBgImg, PPTX_WIDTH_IN * PPI, PPTX_HEIGHT_IN * PPI, { tl: 0, tr: 0, bl: 0, br: 0 }, 'cover', '50% 50%');
+      if (!item.options.data) item.skip = true;
+    });
+  }
+
   // Sync Traversal Function
-  function collect(node, parentZIndex) {
+  function collect(node, parentZIndex, inheritedAnim = null) {
     const order = domOrderCounter++;
 
     let currentZ = parentZIndex;
     let nodeStyle = null;
+    let currentAnim = inheritedAnim;
     const nodeType = node.nodeType;
 
     if (nodeType === 1) {
       nodeStyle = window.getComputedStyle(node);
+      const isFragment = node.classList && node.classList.contains('fragment');
+
+      if (isFragment) {
+        const classes = node.getAttribute('class') || '';
+        const dirMatch = classes.match(/(fade|slide)-(up|down|left|right)/);
+
+        let config = { type: 'fadein' };
+        if (dirMatch) {
+          const dirs = { up: 'bottom', down: 'top', left: 'right', right: 'left' };
+          config = { type: 'flyin', direction: dirs[dirMatch[2]] };
+        } else if (/\b(zoom|shrink|grow)\b/.test(classes)) {
+          config = { type: 'zoom' };
+        } else if (/\b(wipe|peak)\b/.test(classes)) {
+          config = { type: classes.match(/\b(wipe|peak)\b/)[0] };
+        }
+
+        const order = parseInt(node.getAttribute('data-fragment-index') || 0) + 1;
+        currentAnim = { ...config, order };
+      }
+
       // Optimization: Skip completely hidden elements immediately
       if (
         nodeStyle.display === 'none' ||
-        nodeStyle.visibility === 'hidden' ||
-        nodeStyle.opacity === '0'
+        (!isFragment && !currentAnim && (nodeStyle.visibility === 'hidden' || nodeStyle.opacity === '0'))
       ) {
         return;
       }
@@ -212,6 +281,13 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
 
     if (result) {
       if (result.items) {
+        // Apply inherited animations
+        if (currentAnim) {
+          result.items.forEach(item => {
+            if (!item.options) item.options = {};
+            if (!item.options.animation) item.options.animation = { ...currentAnim, trigger: 'onClick' };
+          });
+        }
         // Push items immediately to queue (data might be missing but filled later)
         renderQueue.push(...result.items);
       }
@@ -225,12 +301,12 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     // Recurse children synchronously
     const childNodes = node.childNodes;
     for (let i = 0; i < childNodes.length; i++) {
-      collect(childNodes[i], currentZ);
+      collect(childNodes[i], currentZ, currentAnim);
     }
   }
 
   // 1. Traverse and build the structure (Fast)
-  collect(root, 0);
+  collect(root, 0, null);
 
   // 2. Execute all heavy tasks in parallel (Fast)
   if (asyncTasks.length > 0) {
@@ -467,22 +543,30 @@ function prepareRenderItem(
   computedStyle,
   globalOptions = {}
 ) {
+  let scaleNode = node;
+  let style = computedStyle;
+  const isTextNode = node.nodeType === 3;
+
+  if (isTextNode) {
+    if (!node.nodeValue.trim()) return null;
+    scaleNode = node.parentElement;
+    if (!scaleNode || isTextContainer(scaleNode)) return null;
+    style = window.getComputedStyle(scaleNode);
+  } else if (node.nodeType !== 1) {
+    return null;
+  }
+
+  const { avgAccScale, accScaleX, accScaleY } = getAccumulatedScale(scaleNode, config.root.parentElement, style);
+  const intrinsicScale = config.scale * avgAccScale;
+
   // 1. Text Node Handling
-  if (node.nodeType === 3) {
+  if (isTextNode) {
     const textContent = node.nodeValue.trim();
-    if (!textContent) return null;
-
-    const parent = node.parentElement;
-    if (!parent) return null;
-
-    if (isTextContainer(parent)) return null; // Parent handles it
-
     const range = document.createRange();
     range.selectNode(node);
     const rect = range.getBoundingClientRect();
     range.detach();
 
-    const style = window.getComputedStyle(parent);
     const widthPx = rect.width;
     const heightPx = rect.height;
     const unrotatedW = widthPx * PX_TO_INCH * config.scale;
@@ -500,7 +584,7 @@ function prepareRenderItem(
           textParts: [
             {
               text: textContent,
-              options: getTextStyle(style, config.scale),
+              options: getTextStyle(style, intrinsicScale),
             },
           ],
           options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: false },
@@ -510,9 +594,6 @@ function prepareRenderItem(
     };
   }
 
-  if (node.nodeType !== 1) return null;
-  const style = computedStyle; // Use pre-computed style
-
   const rect = node.getBoundingClientRect();
   if (rect.width < 0.5 || rect.height < 0.5) return null;
 
@@ -521,8 +602,10 @@ function prepareRenderItem(
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
-  const widthPx = node.offsetWidth || rect.width;
-  const heightPx = node.offsetHeight || rect.height;
+  // Use scaled offsetWidth if available, else rect.width
+  const widthPx = node.offsetWidth ? (node.offsetWidth * accScaleX) : rect.width;
+  const heightPx = node.offsetHeight ? (node.offsetHeight * accScaleY) : rect.height;
+
   const unrotatedW = widthPx * PX_TO_INCH * config.scale;
   const unrotatedH = heightPx * PX_TO_INCH * config.scale;
   const centerX = rect.left + rect.width / 2;
@@ -536,7 +619,7 @@ function prepareRenderItem(
   const items = [];
 
   if (node.tagName === 'TABLE') {
-    const tableData = extractTableData(node, config.scale);
+    const tableData = extractTableData(node, config.scale, intrinsicScale);
 
     // Calculate total table width to ensure X position is correct
     // (Though x calculation above usually handles it, tables can be finicky)
@@ -600,7 +683,7 @@ function prepareRenderItem(
           const markerFs = parseFloat(markerStyle.fontSize);
           if (!isNaN(markerFs) && markerFs > 0) {
             // Convert px->pt for PPTX
-            markerFontSize = markerFs * 0.75 * config.scale;
+            markerFontSize = markerFs * 0.75 * intrinsicScale;
           }
         }
 
@@ -633,7 +716,7 @@ function prepareRenderItem(
       }
 
       // 3. Extract Text Parts
-      const parts = collectListParts(child, liStyle, config.scale);
+      const parts = collectListParts(child, liStyle, intrinsicScale);
 
       if (parts.length > 0) {
         parts.forEach((p) => {
@@ -684,8 +767,8 @@ function prepareRenderItem(
         else {
           const mt = parseFloat(liStyle.marginTop) || 0;
           const mb = parseFloat(liStyle.marginBottom) || 0;
-          if (mt > 0) ptBefore = mt * 0.75 * config.scale;
-          if (mb > 0) ptAfter = mb * 0.75 * config.scale;
+          if (mt > 0) ptBefore = mt * 0.75 * intrinsicScale;
+          if (mb > 0) ptAfter = mb * 0.75 * intrinsicScale;
         }
 
         if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
@@ -939,13 +1022,13 @@ function prepareRenderItem(
   const borderWidth = parseFloat(style.borderWidth);
   const hasBorder = borderWidth > 0 && borderColorObj.hex;
 
-  const borderInfo = getBorderInfo(style, config.scale);
+  const borderInfo = getBorderInfo(style, intrinsicScale);
   const hasUniformBorder = borderInfo.type === 'uniform';
   const hasCompositeBorder = borderInfo.type === 'composite';
 
   const shadowStr = style.boxShadow;
   const hasShadow = shadowStr && shadowStr !== 'none';
-  const softEdge = getSoftEdges(style.filter, config.scale);
+  const softEdge = getSoftEdges(style.filter, intrinsicScale);
 
   let isImageWrapper = false;
   const imgChild = Array.from(node.children).find((c) => c.tagName === 'IMG');
@@ -996,7 +1079,7 @@ function prepareRenderItem(
       if (nodeStyle.textTransform === 'lowercase') textVal = textVal.toLowerCase();
 
       if (textVal.length > 0) {
-        const textOpts = getTextStyle(nodeStyle, config.scale);
+        const textOpts = getTextStyle(nodeStyle, intrinsicScale);
 
         // BUG FIX: Numbers 1 and 2 having background.
         // If this is a naked Text Node (nodeType 3), it inherits style from the parent container.
@@ -1022,7 +1105,7 @@ function prepareRenderItem(
       const pb = parseFloat(style.paddingBottom) || 0;
       if (Math.abs(pt - pb) < 2 && bgColorObj.hex) valign = 'middle';
 
-      let padding = getPadding(style, config.scale);
+      let padding = getPadding(style, intrinsicScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
 
       textPayload = { text: textParts, align, valign, inset: padding };
@@ -1098,7 +1181,7 @@ function prepareRenderItem(
         y,
         w,
         h,
-        config.scale,
+        intrinsicScale,
         zIndex,
         domOrder
       );
@@ -1148,7 +1231,7 @@ function prepareRenderItem(
         line: hasUniformBorder ? borderInfo.options : null,
       };
 
-      if (hasShadow) shapeOpts.shadow = getVisibleShadow(shadowStr, config.scale);
+      if (hasShadow) shapeOpts.shadow = getVisibleShadow(shadowStr, intrinsicScale);
 
       // 1. Calculate dimensions first
       const minDimension = Math.min(widthPx, heightPx);

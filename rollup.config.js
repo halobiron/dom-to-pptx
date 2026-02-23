@@ -13,7 +13,8 @@ const onwarn = (warning, warn) => {
     if (
       warning.message.includes('node_modules/readable-stream') ||
       warning.message.includes('node_modules/jszip') ||
-      warning.message.includes('node_modules/semver')
+      warning.message.includes('node_modules/semver') ||
+      warning.message.includes('polyfill-node')
     ) {
       return;
     }
@@ -58,6 +59,7 @@ const configBundle = {
     name: 'domToPptx',
     esModule: false,
     sourcemap: false,
+    inlineDynamicImports: true,
     // Inject global variables for browser compatibility
     intro: `
       var global = typeof self !== "undefined" ? self : this; 

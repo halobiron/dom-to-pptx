@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+  <title>Giới thiệu Python - Cho người mới bắt đầu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Reveal.js Styles -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/black.min.css" id="theme">
+
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;600;800&family=Fira+Code:wght@400;700&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* --- CUSTOM PREMIUM CSS --- */
+    :root {
+      --py-blue: #306998;
+      --py-yellow: #FFD43B;
+      --text-main: #ffffff;
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0a0a0a;
+    }
+
+    .reveal h1,
+    .reveal h2,
+    .reveal h3 {
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+
+    /* Gradient Text */
+    .gradient-text {
+      background: linear-gradient(135deg, var(--py-blue), #4B8BBE, var(--py-yellow));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Glassmorphism Card */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      margin: 20px 0;
+    }
+
+    /* Code Block Styling */
+    .code-window {
+      background: #1e1e1e;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      text-align: left;
+      font-family: 'Fira Code', monospace;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+
+    .code-header {
+      background: #2d2d2d;
+      padding: 10px 15px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .red {
+      background: #ff5f56;
+    }
+
+    .yellow {
+      background: #ffbd2e;
+    }
+
+    .green {
+      background: #27c93f;
+    }
+
+    .code-content {
+      padding: 20px;
+      color: #d4d4d4;
+      font-size: 0.8em;
+      line-height: 1.5;
+    }
+
+    .kw {
+      color: #569cd6;
+    }
+
+    /* Keyword */
+    .str {
+      color: #ce9178;
+    }
+
+    /* String */
+    .func {
+      color: #dcdcaa;
+    }
+
+    /* Function */
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* Utility */
+    .text-left {
+      text-align: left;
+    }
+
+    .highlight {
+      color: var(--py-yellow);
+      font-weight: bold;
+    }
+
+    .reveal ul {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .reveal ul li {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .reveal ul li::before {
+      content: "▹";
+      color: var(--py-yellow);
+      margin-right: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- SLIDE 1: TITLE -->
+      <section class="slide"
+        data-background-image="https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=2070&auto=format&fit=crop"
+        data-background-opacity="0.3">
+        <div style="margin-top: 10%;">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/c/c3/Python-logo-notext.svg"
+            style="width: 120px; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(48, 105, 152, 0.6));">
+          <h1 class="r-fit-text gradient-text">PYTHON</h1>
+          <h3 style="font-weight: 300; color: #ddd;">Ngôn ngữ lập trình của Tương lai</h3>
+          <p style="font-size: 0.6em; margin-top: 50px; opacity: 0.7;">Dành cho người mới bắt đầu</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: WHAT IS PYTHON? -->
+      <section class="slide" data-auto-animate>
+        <h2 class="text-left gradient-text">Python là gì?</h2>
+        <div class="grid-2">
+          <div class="text-left">
+            <p style="font-size: 1.2em; line-height: 1.6;">
+              Python là ngôn ngữ lập trình <span class="highlight">đa năng</span>, ra đời năm 1991 bởi Guido van Rossum.
+            </p>
+            <div class="glass-card fragment fade-up">
+              <ul>
+                <li>Dễ đọc như Tiếng Anh</li>
+                <li>Mã nguồn mở (Miễn phí)</li>
+                <li>Cộng đồng hỗ trợ khổng lồ</li>
+              </ul>
+            </div>
+          </div>
+          <div class="fragment fade-left">
+            <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=2070&auto=format&fit=crop"
+              style="border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: WHY PYTHON (COMPARISON) -->
+      <section class="slide" data-auto-animate>
+        <h2 class="gradient-text">Tại sao chọn Python?</h2>
+        <p style="margin-bottom: 40px;">Sự khác biệt nằm ở sự <span class="highlight">Đơn giản</span></p>
+
+        <div class="grid-2">
+          <!-- Java/C++ Example -->
+          <div class="code-window fragment fade-right" style="opacity: 0.6; transform: scale(0.9);">
+            <div class="code-header">
+              <div class="dot red"></div>
+              <div class="dot yellow"></div>
+              <div class="dot green"></div><span style="font-size:12px; margin-left:10px; color:#888">Java/C++ (Phức
+                tạp)</span>
+            </div>
+            <div class="code-content">
+              <span class="kw">public class</span> HelloWorld {<br>
+              &nbsp;&nbsp;<span class="kw">public static void</span> main(String[] args) {<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;System.out.println(<span class="str">"Hello World"</span>);<br>
+              &nbsp;&nbsp;}<br>
+              }
+            </div>
+          </div>
+
+          <!-- Python Example -->
+          <div class="code-window fragment fade-left" style="border: 2px solid var(--py-yellow);">
+            <div class="code-header">
+              <div class="dot red"></div>
+              <div class="dot yellow"></div>
+              <div class="dot green"></div><span style="font-size:12px; margin-left:10px; color:#888">Python (Đơn
+                giản)</span>
+            </div>
+            <div class="code-content" style="font-size: 1.2em;">
+              <span class="func">print</span>(<span class="str">"Hello World"</span>)
+            </div>
+          </div>
+        </div>
+        <p class="fragment fade-up" style="margin-top: 30px; font-size: 0.8em; color: #aaa;">Python giúp bạn tập trung
+          vào giải pháp, không phải cú pháp.</p>
+      </section>
+
+      <!-- SLIDE 4: APPLICATIONS -->
+      <section class="slide">
+        <h2 class="gradient-text" style="margin-bottom: 50px;">Python làm được gì?</h2>
+        <div class="grid-3">
+          <div class="glass-card fragment fade-up" data-fragment-index="1">
+            <div style="font-size: 3em; margin-bottom: 20px;">🤖</div>
+            <h4>Trí tuệ nhân tạo (AI)</h4>
+            <p style="font-size: 0.6em; color: #ccc;">Machine Learning, Deep Learning, Chatbots (ChatGPT).</p>
+          </div>
+          <div class="glass-card fragment fade-up" data-fragment-index="2">
+            <div style="font-size: 3em; margin-bottom: 20px;">📊</div>
+            <h4>Phân tích dữ liệu</h4>
+            <p style="font-size: 0.6em; color: #ccc;">Xử lý Big Data, vẽ biểu đồ tài chính, chứng khoán.</p>
+          </div>
+          <div class="glass-card fragment fade-up" data-fragment-index="3">
+            <div style="font-size: 3em; margin-bottom: 20px;">🌐</div>
+            <h4>Lập trình Web</h4>
+            <p style="font-size: 0.6em; color: #ccc;">Xây dựng backend cho các website lớn (Instagram, Pinterest).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: BIG TECH -->
+      <section class="slide" data-background-color="#050505">
+        <h3>Ai đang sử dụng Python?</h3>
+        <div
+          style="display: flex; justify-content: center; align-items: center; gap: 50px; margin-top: 50px; flex-wrap: wrap;">
+          <div class="fragment zoom-in" style="text-align: center;">
+            <h1 style="font-size: 2.5em; color: #4285F4;">Google</h1>
+            <p style="font-size: 0.5em;">Tìm kiếm & AI</p>
+          </div>
+          <div class="fragment zoom-in" style="text-align: center;">
+            <h1 style="font-size: 2.5em; color: #E50914;">NETFLIX</h1>
+            <p style="font-size: 0.5em;">Gợi ý phim</p>
+          </div>
+          <div class="fragment zoom-in" style="text-align: center;">
+            <h1 style="font-size: 2.5em; color: #1DB954;">Spotify</h1>
+            <p style="font-size: 0.5em;">Phân tích nhạc</p>
+          </div>
+          <div class="fragment zoom-in" style="text-align: center;">
+            <h1 style="font-size: 2.5em; color: #FFFFFF;">NASA</h1>
+            <p style="font-size: 0.5em;">Xử lý ảnh vũ trụ</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: ROADMAP -->
+      <section class="slide">
+        <h2 class="gradient-text">Lộ trình cho người mới</h2>
+        <div style="position: relative; margin-top: 40px; max-width: 800px; margin-left: auto; margin-right: auto;">
+          <!-- Timeline Line -->
+          <div style="position: absolute; left: 50px; top: 0; bottom: 0; width: 4px; background: var(--py-blue);"></div>
+
+          <div class="fragment fade-right" style="display: flex; align-items: center; margin-bottom: 30px;">
+            <div
+              style="width: 100px; text-align: right; padding-right: 20px; font-weight: bold; color: var(--py-yellow);">
+              Tuần 1</div>
+            <div class="glass-card" style="flex: 1; margin: 0; padding: 15px;">
+              <h5>Cơ bản</h5>
+              <p style="font-size: 0.6em; margin: 0;">Cài đặt Python, Biến, Kiểu dữ liệu, Lệnh If/Else.</p>
+            </div>
+          </div>
+
+          <div class="fragment fade-right" style="display: flex; align-items: center; margin-bottom: 30px;">
+            <div
+              style="width: 100px; text-align: right; padding-right: 20px; font-weight: bold; color: var(--py-yellow);">
+              Tuần 2</div>
+            <div class="glass-card" style="flex: 1; margin: 0; padding: 15px;">
+              <h5>Cấu trúc & Hàm</h5>
+              <p style="font-size: 0.6em; margin: 0;">Vòng lặp (Loop), Hàm (Function), List, Dictionary.</p>
+            </div>
+          </div>
+
+          <div class="fragment fade-right" style="display: flex; align-items: center;">
+            <div
+              style="width: 100px; text-align: right; padding-right: 20px; font-weight: bold; color: var(--py-yellow);">
+              Tuần 3+</div>
+            <div class="glass-card" style="flex: 1; margin: 0; padding: 15px;">
+              <h5>Dự án thực tế</h5>
+              <p style="font-size: 0.6em; margin: 0;">Làm máy tính bỏ túi, Game rắn săn mồi, hoặc Web đơn giản.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: CONCLUSION -->
+      <section class="slide"
+        data-background-image="https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?q=80&w=2070&auto=format&fit=crop"
+        data-background-opacity="0.4">
+        <h1 class="r-fit-text gradient-text">BẮT ĐẦU NGAY!</h1>
+        <p style="font-size: 1.2em; margin-top: 20px;">"Hành trình ngàn dặm bắt đầu từ một dòng code."</p>
+        <div style="margin-top: 50px;">
+          <a href="#"
+            style="background: var(--py-blue); color: white; padding: 15px 30px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 0.8em;">Tải
+            Python tại python.org</a>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- EXPORT BUTTON -->
+  <button id="megaExportBtn"
+    style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 12px 20px; background: linear-gradient(45deg, #306998, #FFD43B); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">Tải
+    Slide (PPTX)</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      transition: 'convex', // Hiệu ứng chuyển slide 3D nhẹ
+      backgroundTransition: 'fade',
+      autoAnimateEasing: 'ease-out',
+      autoAnimateDuration: 0.8,
+      width: 1280,
+      height: 720
+    });
+  </script>
+
+  <!-- EXPORT SCRIPT -->
+  <script src="./dist/dom-to-pptx.bundle.js?v=2"></script>
+  <script>
+    document.getElementById('megaExportBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('megaExportBtn');
+      const old = btn.innerHTML; btn.innerText = 'Đang xuất file...'; btn.disabled = true;
+      try {
+        const slides = Array.from(document.querySelectorAll('.slide'));
+        // Lưu trạng thái cũ
+        const styles = slides.map(s => ({
+          v: s.style.visibility, o: s.style.opacity, t: s.style.transform,
+          d: s.style.display
+        }));
+
+        // Hiển thị tất cả để chụp
+        slides.forEach(s => {
+          s.style.visibility = 'visible';
+          s.style.opacity = '1';
+          s.style.transform = 'none';
+          // Set to block to prevent flexbox from ruining the layout of the slide section itself
+          s.style.display = 'block';
+        });
+
+        await new Promise(r => setTimeout(r, 500));
+        await domToPptx.exportToPptx(slides, { fileName: 'Gioi_Thieu_Python.pptx', autoEmbedFonts: false });
+
+        // Khôi phục trạng thái
+        slides.forEach((s, i) => {
+          s.style.visibility = styles[i].v;
+          s.style.opacity = styles[i].o;
+          s.style.transform = styles[i].t;
+          s.style.display = styles[i].d;
+        });
+        if (typeof Reveal !== 'undefined') Reveal.sync();
+
+        btn.innerText = 'Hoàn tất!'; setTimeout(() => { btn.innerHTML = old; btn.disabled = false; }, 3000);
+      } catch (e) { alert('Lỗi: ' + e.message); btn.innerHTML = old; btn.disabled = false; }
+    });
+  </script>
+</body>
+
+</html>
