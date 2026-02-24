@@ -35,10 +35,89 @@ const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
 
 /**
+ * Map Reveal.js transitions to PPTX transition types
+ */
+const TRANSITION_MAP = {
+  'none': null,
+  'fade': 'fade',
+  'slide': 'push',
+  'convex': 'zoom',
+  'concave': 'zoom',
+  'zoom': 'zoom',
+  'push': 'push',
+  'wipe': 'wipe',
+  'reveal': 'reveal',
+};
+
+/**
  * Check if an element has any visible content (text/images/etc)
  */
 function hasVisibleContent(element) {
   return element.innerText?.trim().length > 0;
+}
+
+/**
+ * Extract transition from HTML element or use global transition
+ * @param {HTMLElement} element - The slide element
+ * @param {string} globalTransition - Global transition from Reveal config
+ * @returns {string|null} - PPTX transition type
+ */
+function getSlideTransition(element, globalTransition) {
+  // Check for data-transition attribute on the element
+  let transition = element.getAttribute('data-transition');
+  
+  // If no data-transition, use global transition
+  if (!transition && globalTransition) {
+    transition = globalTransition;
+  }
+  
+  if (!transition) return null;
+  
+  // Map to PPTX transition
+  return TRANSITION_MAP[transition.toLowerCase()] || null;
+}
+
+/**
+ * Apply transitions to PPTX file using JSZip
+ * @param {Blob} pptxBlob - The generated PPTX blob
+ * @param {Array<string|null>} slideTransitions - Array of transitions for each slide
+ * @returns {Promise<Blob>} - PPTX blob with transitions applied
+ */
+async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
+  if (!slideTransitions.some(t => t)) {
+    return pptxBlob;
+  }
+  
+  const zip = await JSZip.loadAsync(pptxBlob);
+  
+  const transitionXmlMap = {
+    'fade': '<p:transition spd="med" dur="500"><p:fade thruBlk="false"/></p:transition>',
+    'push': '<p:transition spd="med" dur="500"><p:push dir="l"/></p:transition>',
+    'zoom': '<p:transition spd="med" dur="500"><p:zoom dir="in"/></p:transition>',
+    'wipe': '<p:transition spd="med" dur="500"><p:wipe dir="l"/></p:transition>',
+    'reveal': '<p:transition spd="med" dur="500"><p:reveal dir="l"/></p:transition>',
+  };
+  
+  // Process each slide
+  for (let i = 0; i < slideTransitions.length; i++) {
+    const transition = slideTransitions[i];
+    if (!transition) continue;
+    
+    const slideFile = `ppt/slides/slide${i + 1}.xml`;
+    const file = zip.file(slideFile);
+    
+    let xmlStr = await file.async('string');
+    
+    // Remove existing transitions
+    xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
+    
+    // Add transition after </p:cSld>
+    xmlStr = xmlStr.replace('</p:cSld>', '</p:cSld>' + transitionXml);
+    
+    zip.file(slideFile, xmlStr);
+  }
+  
+  return await zip.generateAsync({ type: 'blob' });
 }
 
 /**
@@ -50,6 +129,9 @@ function hasVisibleContent(element) {
  * @param {Object} [options.listConfig] - Config for bullets
  * @param {boolean} [options.svgAsVector=false] - If true, keeps SVG as vector (for Convert to Shape in PowerPoint)
  * @param {number} [options.margin=0] - Slide margin as a fraction (e.g. 0.05 for 5% margin)
+ * @param {string} [options.transition] - Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal). Overrides Reveal.js config.
+ * @param {Array} [options.fonts] - Array of fonts to embed
+ * @param {boolean} [options.autoEmbedFonts=false] - Auto-detect and embed fonts
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
@@ -69,11 +151,29 @@ export async function exportToPptx(target, options = {}) {
   pptx.layout = 'LAYOUT_16x9';
 
   const elements = Array.isArray(target) ? target : [target];
+  
+  // Get global transition from multiple sources (in priority order):
+  // 1. Explicit option passed to exportToPptx
+  // 2. Reveal.js global config (if available)
+  let globalTransition = options.transition || null;
+  
+  if (!globalTransition && typeof window !== 'undefined' && window.Reveal) {
+    try {
+      const config = window.Reveal.getConfig?.();
+      if (config && config.transition) {
+        globalTransition = config.transition;
+      }
+    } catch (e) {
+      // Silently ignore if Reveal.js is not available
+    }
+  }
+  
+  // Collect slide transitions
+  const slideTransitions = [];
 
   for (const el of elements) {
     const root = typeof el === 'string' ? document.querySelector(el) : el;
     if (!root) {
-      console.warn('Element not found, skipping slide:', el);
       continue;
     }
     
@@ -83,6 +183,10 @@ export async function exportToPptx(target, options = {}) {
       console.warn('Slide is empty, skipping:', el);
       continue;
     }
+    
+    // Collect transition for this slide
+    const slideTransition = getSlideTransition(root, globalTransition);
+    slideTransitions.push(slideTransition);
     
     const slide = pptx.addSlide();
     await processSlide(root, slide, pptx, options);
@@ -143,10 +247,16 @@ export async function exportToPptx(target, options = {}) {
     }
 
     await embedder.updateFiles();
-    finalBlob = await embedder.generateBlob();
+    let blobWithFonts = await embedder.generateBlob();
+    
+    // Apply transitions
+    finalBlob = await applyTransitionsToBlob(blobWithFonts, slideTransitions);
   } else {
     // No fonts to embed
-    finalBlob = await pptx.write({ outputType: 'blob' });
+    let initialBlob = await pptx.write({ outputType: 'blob' });
+    
+    // Apply transitions
+    finalBlob = await applyTransitionsToBlob(initialBlob, slideTransitions);
   }
 
   // 4. Output Handling
