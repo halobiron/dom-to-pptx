@@ -35,6 +35,13 @@ const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
 
 /**
+ * Check if an element has any visible content (text/images/etc)
+ */
+function hasVisibleContent(element) {
+  return element.innerText?.trim().length > 0;
+}
+
+/**
  * Main export function.
  * @param {HTMLElement | string | Array<HTMLElement | string>} target
  * @param {Object} options
@@ -69,6 +76,14 @@ export async function exportToPptx(target, options = {}) {
       console.warn('Element not found, skipping slide:', el);
       continue;
     }
+    
+    // Skip completely empty slides (no actual text/image content, only background)
+    const hasContent = hasVisibleContent(root);
+    if (!hasContent) {
+      console.warn('Slide is empty, skipping:', el);
+      continue;
+    }
+    
     const slide = pptx.addSlide();
     await processSlide(root, slide, pptx, options);
   }
