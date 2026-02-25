@@ -487,7 +487,7 @@ export function getTextStyle(style, scale, fontScaleFactor = 1) {
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
   // Calculate font size with smart scaling
-  const baseFontSize = fontSizePx * scale * 0.85;
+  const baseFontSize = fontSizePx * scale * 0.72;
   const fontSize = Math.round(baseFontSize * fontScaleFactor);
 
   return {

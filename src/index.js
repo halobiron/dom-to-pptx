@@ -137,7 +137,7 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
  * @param {boolean} [options.skipDownload=false] - If true, prevents automatic download
  * @param {Object} [options.listConfig] - Config for bullets
  * @param {boolean} [options.svgAsVector=false] - If true, keeps SVG as vector (for Convert to Shape in PowerPoint)
- * @param {number} [options.margin=0] - Slide margin as a fraction (e.g. 0.05 for 5% margin)
+ * @param {number} [options.margin=0] - Slide margin as a fraction (e.g. 0.1 for 5% margin)
  * @param {string} [options.transition] - Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal). Overrides Reveal.js config.
  * @param {Array} [options.fonts] - Array of fonts to embed
  * @param {boolean} [options.autoEmbedFonts=false] - Auto-detect and embed fonts
@@ -745,7 +745,7 @@ function prepareRenderItem(
               options: getTextStyle(style, intrinsicScale, config.fontScaleFactor),
             },
           ],
-          options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: false },
+          options: { x, y, w: unrotatedW + 0.05, h: unrotatedH, margin: 0, autoFit: true },
         },
       ],
       stopRecursion: false,
@@ -1158,7 +1158,7 @@ function prepareRenderItem(
           rotate: rotation,
           margin: 0,
           wrap: true,
-          autoFit: false,
+          autoFit: true,
         },
       });
     }
@@ -1267,7 +1267,7 @@ function prepareRenderItem(
           inset: textPayload.inset,
           margin: 0,
           wrap: true,
-          autoFit: false,
+          autoFit: true,
         };
         items.push({
           type: 'text',
@@ -1385,7 +1385,7 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
     zIndex: zIndex + 1,
     domOrder,
     textParts: listItems,
-    options: { x, y, w, h, align: 'left', valign: 'top', margin: 0, autoFit: false, wrap: true }
+    options: { x, y, w: w + 0.05, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
   });
   
   return { items, stopRecursion: true };
