@@ -107,7 +107,7 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
     const file = zip.file(slideFile);
     
     let xmlStr = await file.async('string');
-    
+    const transitionXml = transitionXmlMap[transition];
     // Remove existing transitions
     xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
     
@@ -119,6 +119,8 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
   
   return await zip.generateAsync({ type: 'blob' });
 }
+
+
 
 /**
  * Main export function.
@@ -763,183 +765,8 @@ function prepareRenderItem(
   }
 
   if ((node.tagName === 'UL' || node.tagName === 'OL') && !isComplexHierarchy(node)) {
-    const listItems = [];
-    const liChildren = Array.from(node.children).filter((c) => c.tagName === 'LI');
-
-    liChildren.forEach((child, index) => {
-      const liStyle = window.getComputedStyle(child);
-      const liRect = child.getBoundingClientRect();
-      const parentRect = node.getBoundingClientRect(); // node is UL/OL
-
-      // 1. Determine Bullet Config
-      let bullet = { type: 'bullet' };
-      const listStyleType = liStyle.listStyleType || 'disc';
-
-      if (node.tagName === 'OL' || listStyleType === 'decimal') {
-        bullet = { type: 'number' };
-      } else if (listStyleType === 'none') {
-        bullet = false;
-      } else {
-        let code = '2022'; // disc
-        if (listStyleType === 'circle') code = '25CB';
-        if (listStyleType === 'square') code = '25A0';
-
-        // --- CHANGE: Color & Size Logic (Option > ::marker > CSS color) ---
-        let finalHex = '000000';
-        let markerFontSize = null;
-
-        // A. Check Global Option override
-        if (globalOptions?.listConfig?.color) {
-          finalHex = parseColor(globalOptions.listConfig.color).hex || '000000';
-        }
-        // B. Check ::marker pseudo element (supported in modern browsers)
-        else {
-          const markerStyle = window.getComputedStyle(child, '::marker');
-          const markerColor = parseColor(markerStyle.color);
-          if (markerColor.hex) {
-            finalHex = markerColor.hex;
-          } else {
-            // C. Fallback to LI text color
-            const colorObj = parseColor(liStyle.color);
-            if (colorObj.hex) finalHex = colorObj.hex;
-          }
-
-          // Check ::marker font-size
-          const markerFs = parseFloat(markerStyle.fontSize);
-          if (!isNaN(markerFs) && markerFs > 0) {
-            // Convert px->pt for PPTX
-            markerFontSize = markerFs * 0.75 * intrinsicScale;
-          }
-        }
-
-        bullet = { code, color: finalHex };
-        if (markerFontSize) {
-          bullet.fontSize = markerFontSize;
-        }
-      }
-
-      // 2. Calculate Dynamic Indent (Respects padding-left)
-      // Visual Indent = Distance from UL left edge to LI Content left edge.
-      // PptxGenJS 'indent' = Space between bullet and text?
-      // Actually PptxGenJS 'indent' allows setting the hanging indent.
-      // We calculate the TOTAL visual offset from the parent container.
-      // 1 px = 0.75 pt (approx, standard DTP).
-      // We must scale it by config.scale.
-      const visualIndentPx = liRect.left - parentRect.left;
-      /*
-         Standard indent in PPT is ~27pt.
-         If visualIndentPx is small (e.g. 10px padding), we want small indent.
-         If visualIndentPx is large (40px padding), we want large indent.
-         We treat 'indent' as the value to pass to PptxGenJS.
-      */
-      const computedIndentPt = visualIndentPx * 0.75 * config.scale;
-
-      if (bullet && computedIndentPt > 0) {
-        bullet.indent = computedIndentPt;
-        // Also support custom margin between bullet and text if provided in listConfig?
-        // For now, computedIndentPt covers the visual placement.
-      }
-
-      // 3. Extract Text Parts
-      const parts = collectListParts(child, liStyle, intrinsicScale);
-
-      if (parts.length > 0) {
-        parts.forEach((p) => {
-          if (!p.options) p.options = {};
-        });
-
-        // A. Apply Bullet
-        // Workaround: pptxgenjs bullets inherit the style of the text run they are attached to.
-        // To support ::marker styles (color, size) that differ from the text, we create
-        // a "dummy" text run at the start of the list item that carries the bullet configuration.
-        if (bullet) {
-          const firstPartInfo = parts[0].options;
-
-          // Create a dummy run. We use a Zero Width Space to ensure it's rendered but invisible.
-          // This "run" will hold the bullet and its specific color/size.
-          const bulletRun = {
-            text: '\u200B',
-            options: {
-              ...firstPartInfo, // Inherit base props (fontFace, etc.)
-              color: bullet.color || firstPartInfo.color,
-              fontSize: bullet.fontSize || firstPartInfo.fontSize,
-              bullet: bullet,
-            },
-          };
-
-          // Don't duplicate transparent or empty color from firstPart if bullet has one
-          if (bullet.color) bulletRun.options.color = bullet.color;
-          if (bullet.fontSize) bulletRun.options.fontSize = bullet.fontSize;
-
-          // Prepend
-          parts.unshift(bulletRun);
-        }
-
-        // B. Apply Spacing
-        let ptBefore = 0;
-        let ptAfter = 0;
-
-        // A. Check Global Options (Expected in Points)
-        if (globalOptions.listConfig?.spacing) {
-          if (typeof globalOptions.listConfig.spacing.before === 'number') {
-            ptBefore = globalOptions.listConfig.spacing.before;
-          }
-          if (typeof globalOptions.listConfig.spacing.after === 'number') {
-            ptAfter = globalOptions.listConfig.spacing.after;
-          }
-        }
-        // B. Fallback to CSS Margins (Convert px -> pt)
-        else {
-          const mt = parseFloat(liStyle.marginTop) || 0;
-          const mb = parseFloat(liStyle.marginBottom) || 0;
-          if (mt > 0) ptBefore = mt * 0.75 * intrinsicScale;
-          if (mb > 0) ptAfter = mb * 0.75 * intrinsicScale;
-        }
-
-        if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
-        if (ptAfter > 0) parts[0].options.paraSpaceAfter = ptAfter;
-
-        if (index < liChildren.length - 1) {
-          parts[parts.length - 1].options.breakLine = true;
-        }
-
-        listItems.push(...parts);
-      }
-    });
-
-    if (listItems.length > 0) {
-      // Add background if exists
-      const bgColorObj = parseColor(style.backgroundColor);
-      if (bgColorObj.hex && bgColorObj.opacity > 0) {
-        items.push({
-          type: 'shape',
-          zIndex,
-          domOrder,
-          shapeType: 'rect',
-          options: { x, y, w, h, fill: { color: bgColorObj.hex } },
-        });
-      }
-
-      items.push({
-        type: 'text',
-        zIndex: zIndex + 1,
-        domOrder,
-        textParts: listItems,
-        options: {
-          x,
-          y,
-          w,
-          h,
-          align: 'left',
-          valign: 'top',
-          margin: 0,
-          autoFit: false,
-          wrap: true,
-        },
-      });
-
-      return { items, stopRecursion: true };
-    }
+    const result = renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions);
+    if (result) return result;
   }
 
   if (node.tagName === 'CANVAS') {
@@ -1166,7 +993,11 @@ function prepareRenderItem(
   let textPayload = null;
   const isText = isTextContainer(node);
 
-  if (isText) {
+  // If node contains a UL/OL as a direct child, DON'T treat it as pure text container
+  // Let the UL/OL be processed separately for proper bullet rendering
+  const hasDirectList = Array.from(node.children).some((c) => c.tagName === 'UL' || c.tagName === 'OL');
+  
+  if (isText && !hasDirectList) {
     const textParts = [];
     let trimNextLeading = false;
 
@@ -1472,6 +1303,86 @@ function isComplexHierarchy(root) {
   return false;
 }
 
+/**
+ * Render UL/OL as native PPTX bullets (simplified)
+ */
+function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions) {
+  const listItems = [];
+  const liChildren = Array.from(node.children).filter(c => c.tagName === 'LI');
+  
+  liChildren.forEach((li, idx) => {
+    const liStyle = window.getComputedStyle(li);
+    const bullet = getBulletConfig(node, li, liStyle);
+    
+    if (bullet) {
+      const visualIndent = (li.getBoundingClientRect().left - node.getBoundingClientRect().left) * 0.75 * config.scale;
+      if (visualIndent > 0) bullet.indent = visualIndent;
+    }
+    
+    const parts = collectListParts(li, liStyle, intrinsicScale);
+    if (parts.length === 0) return;
+    
+    parts.forEach(p => { if (!p.options) p.options = {}; });
+    
+    if (bullet) {
+      parts.unshift({
+        text: '\u200B',
+        options: { ...parts[0]?.options, bullet, color: bullet.color || parts[0]?.options?.color }
+      });
+    }
+    
+    const mt = parseFloat(liStyle.marginTop) || 0;
+    const mb = parseFloat(liStyle.marginBottom) || 0;
+    if (mt > 0) parts[0].options.paraSpaceBefore = mt * 0.75 * intrinsicScale;
+    if (mb > 0) parts[0].options.paraSpaceAfter = mb * 0.75 * intrinsicScale;
+    if (idx < liChildren.length - 1) parts[parts.length - 1].options.breakLine = true;
+    
+    listItems.push(...parts);
+  });
+  
+  if (listItems.length === 0) return null;
+  
+  const items = [];
+  const bgColorObj = parseColor(style.backgroundColor);
+  if (bgColorObj.hex && bgColorObj.opacity > 0) {
+    items.push({ type: 'shape', zIndex, domOrder, shapeType: 'rect', options: { x, y, w, h, fill: { color: bgColorObj.hex } } });
+  }
+  
+  items.push({
+    type: 'text',
+    zIndex: zIndex + 1,
+    domOrder,
+    textParts: listItems,
+    options: { x, y, w, h, align: 'left', valign: 'top', margin: 0, autoFit: false, wrap: true }
+  });
+  
+  return { items, stopRecursion: true };
+}
+
+/** Get bullet config for a list item */
+function getBulletConfig(node, li, liStyle) {
+  let listStyleType = liStyle.listStyleType || 'disc';
+  
+  // Check for custom icons from ::before
+  if (listStyleType === 'none') {
+    const beforeStyle = window.getComputedStyle(li, '::before');
+    const content = beforeStyle.content?.replace(/^['"]|['"]$/g, '').trim();
+    
+    if (content && !/^[\d.\s]*$/.test(content)) {
+      const color = parseColor(beforeStyle.color).hex || '000000';
+      return { type: 'bullet', char: content, color: color.startsWith('#') ? color : `#${color}` };
+    }
+    
+    listStyleType = node.tagName === 'OL' ? 'decimal' : 'disc';
+  }
+  
+  if (node.tagName === 'OL' || listStyleType === 'decimal') return { type: 'number' };
+  if (listStyleType === 'none') return null;
+  
+  const charMap = { disc: '2022', circle: '25CB', square: '25A0' };
+  return { type: 'bullet', char: charMap[listStyleType] || charMap.disc, color: '#000000' };
+}
+
 function collectListParts(node, parentStyle, scale) {
   const parts = [];
 
@@ -1485,7 +1396,7 @@ function collectListParts(node, parentStyle, scale) {
       if (cleanContent.trim()) {
         parts.push({
           text: cleanContent + ' ', // Add space after icon
-          options: getTextStyle(window.getComputedStyle(node), scale),
+          options: getTextStyle(beforeStyle, scale),  // Use ::before style for custom icons (color, etc)
         });
       }
     }
