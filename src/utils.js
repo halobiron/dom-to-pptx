@@ -487,10 +487,9 @@ export function getTextStyle(style, scale, fontScaleFactor = 1) {
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
   // Calculate font size with smart scaling
-  let baseFontSize = Math.floor(fontSizePx * 0.75 * scale);
-  
-  // Auto-scale small text (< 10pt) to ensure readability
-  let fontSize = baseFontSize;
+  const baseFontSize = Math.floor(fontSizePx * 0.75 * scale);
+  const scaleAdjustment = (fontScaleFactor === 1 && baseFontSize < 10) ? 1.5 : fontScaleFactor;
+  const fontSize = Math.floor(baseFontSize * scaleAdjustment);
 
   return {
     color: colorObj.hex || '000000',
@@ -561,8 +560,16 @@ export function isTextContainer(node) {
     const hasVisibleBg = bgColor.hex && bgColor.opacity > 0;
     const hasBorder =
       parseFloat(style.borderWidth) > 0 && parseColor(style.borderColor).opacity > 0;
+    const hasBorderRadius = parseFloat(style.borderRadius) > 0;
 
     if (hasVisibleBg || hasBorder) {
+      // If it has border radius or significant padding, it's a styled object (like a button or badge),
+      // not a simple text highlight. We treat it as a separate layout block to preserve shape rendering.
+      const padding = parseFloat(style.paddingTop) || parseFloat(style.paddingLeft) || 0;
+      if (hasBorderRadius || padding > 5) {
+        return false;
+      }
+      
       // Relaxed check: Allow inline elements with background/border to be treated as text.
       // They will be rendered as highlighted text runs (no border support in text runs though).
       // This preserves text flow for "badges".
