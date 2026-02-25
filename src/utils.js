@@ -445,7 +445,7 @@ export function getSoftEdges(filterStr, scale) {
   return null;
 }
 
-export function getTextStyle(style, scale) {
+export function getTextStyle(style, scale, fontScaleFactor = 1) {
   let colorObj = parseColor(style.color);
 
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
@@ -486,10 +486,16 @@ export function getTextStyle(style, scale) {
   if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
+  // Calculate font size with smart scaling
+  let baseFontSize = Math.floor(fontSizePx * 0.75 * scale);
+  
+  // Auto-scale small text (< 10pt) to ensure readability
+  let fontSize = baseFontSize;
+
   return {
     color: colorObj.hex || '000000',
     fontFace: style.fontFamily.split(',')[0].replace(/['"]/g, ''),
-    fontSize: Math.floor(fontSizePx * 0.75 * scale),
+    fontSize: fontSize,
     bold: parseInt(style.fontWeight) >= 600,
     italic: style.fontStyle === 'italic',
     underline: style.textDecoration.includes('underline'),

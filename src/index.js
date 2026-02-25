@@ -141,6 +141,7 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
  * @param {string} [options.transition] - Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal). Overrides Reveal.js config.
  * @param {Array} [options.fonts] - Array of fonts to embed
  * @param {boolean} [options.autoEmbedFonts=false] - Auto-detect and embed fonts
+ * @param {number} [options.fontScaleFactor=1] - Scale factor for all fonts (1=normal, 1.5=1.5x larger). Auto-boosts text < 10pt to 1.5x if not specified.
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
@@ -329,6 +330,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     scale: scale,
     offX: (PPTX_WIDTH_IN - contentWidthIn * scale) / 2,
     offY: (PPTX_HEIGHT_IN - contentHeightIn * scale) / 2,
+    fontScaleFactor: globalOptions.fontScaleFactor ?? 1,
   };
 
   const renderQueue = [];
@@ -718,7 +720,7 @@ function prepareRenderItem(
           textParts: [
             {
               text: textContent,
-              options: getTextStyle(style, intrinsicScale),
+              options: getTextStyle(style, intrinsicScale, config.fontScaleFactor),
             },
           ],
           options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: false },
@@ -1043,7 +1045,7 @@ function prepareRenderItem(
       if (nodeStyle.textTransform === 'lowercase') textVal = textVal.toLowerCase();
 
       if (textVal.length > 0) {
-        const textOpts = getTextStyle(nodeStyle, intrinsicScale);
+        const textOpts = getTextStyle(nodeStyle, intrinsicScale, config.fontScaleFactor);
 
         // BUG FIX: Numbers 1 and 2 having background.
         // If this is a naked Text Node (nodeType 3), it inherits style from the parent container.
@@ -1327,7 +1329,7 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
       if (visualIndent > 0) bullet.indent = visualIndent;
     }
     
-    const parts = collectListParts(li, liStyle, intrinsicScale);
+    const parts = collectListParts(li, liStyle, intrinsicScale, config.fontScaleFactor);
     if (parts.length === 0) return;
     
     parts.forEach(p => { if (!p.options) p.options = {}; });
@@ -1391,7 +1393,7 @@ function getBulletConfig(node, li, liStyle) {
   return { type: 'bullet', char: charMap[listStyleType] || charMap.disc, color: '#000000' };
 }
 
-function collectListParts(node, parentStyle, scale) {
+function collectListParts(node, parentStyle, scale, fontScaleFactor = 1) {
   const parts = [];
 
   // Check for CSS Content (::before) - often used for icons
@@ -1404,7 +1406,7 @@ function collectListParts(node, parentStyle, scale) {
       if (cleanContent.trim()) {
         parts.push({
           text: cleanContent + ' ', // Add space after icon
-          options: getTextStyle(beforeStyle, scale),  // Use ::before style for custom icons (color, etc)
+          options: getTextStyle(beforeStyle, scale, fontScaleFactor),  // Use ::before style for custom icons (color, etc)
         });
       }
     }
@@ -1419,13 +1421,13 @@ function collectListParts(node, parentStyle, scale) {
         const styleToUse = node.nodeType === 1 ? window.getComputedStyle(node) : parentStyle;
         parts.push({
           text: val,
-          options: getTextStyle(styleToUse, scale),
+          options: getTextStyle(styleToUse, scale, fontScaleFactor),
         });
       }
     } else if (child.nodeType === 1) {
       // Element (span, i, b)
       // Recurse
-      parts.push(...collectListParts(child, parentStyle, scale));
+      parts.push(...collectListParts(child, parentStyle, scale, fontScaleFactor));
     }
   });
 
