@@ -50,6 +50,13 @@ const TRANSITION_MAP = {
 };
 
 /**
+ * Helper functions to trim whitespace while preserving non-breaking spaces (\u00A0)
+ */
+function smartTrimStart(text) {
+  // Only trim regular spaces, tabs, newlines - NOT non-breaking spaces
+  return text.replace(/^[ \t\r\n]+/, '');
+}
+/**
  * Check if an element has any visible content (text/images/etc)
  */
 function hasVisibleContent(element) {
@@ -688,7 +695,7 @@ function prepareRenderItem(
 
   // 1. Text Node Handling
   if (isTextNode) {
-    const textContent = node.nodeValue.trim();
+    const textContent = smartTrimStart(node.nodeValue);
     const range = document.createRange();
     range.selectNode(node);
     const rect = range.getBoundingClientRect();
@@ -1021,12 +1028,13 @@ function prepareRenderItem(
 
       let textVal = child.nodeType === 3 ? child.nodeValue : child.textContent;
       let nodeStyle = child.nodeType === 1 ? window.getComputedStyle(child) : style;
-      textVal = textVal.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ');
+      // Normalize whitespace: replace newlines/tabs with spaces, but preserve &nbsp; (U+00A0)
+      textVal = textVal.replace(/[\n\r\t]+/g, ' ').replace(/[ \f\v]{2,}/g, ' ');
 
-      // Trimming logic
-      if (index === 0) textVal = textVal.trimStart();
+      // Trimming logic - use smart trim to preserve non-breaking spaces
+      if (index === 0) textVal = smartTrimStart(textVal);
       if (trimNextLeading) {
-        textVal = textVal.trimStart();
+        textVal = smartTrimStart(textVal);
         trimNextLeading = false;
       }
 
