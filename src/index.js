@@ -308,8 +308,13 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible' }));
   });
 
+  // Ensure element is in view and has finished layout recalculation
+  root.scrollIntoView({ behavior: 'auto' });
+  // Force a synchronous layout recalculation by accessing offsetHeight
+  void root.offsetHeight;
+  
   // Brief timeout to let the browser recalculate styles after resetting transforms
-  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 50));
 
   const rootRect = root.getBoundingClientRect();
   const PPTX_WIDTH_IN = 10;
@@ -421,7 +426,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
         if (currentAnim) {
           result.items.forEach(item => {
             if (!item.options) item.options = {};
-            if (!item.options.animation) item.options.animation = { ...currentAnim, trigger: 'onClick' };
+            if (!item.options.animation) item.options.animation = { ...currentAnim };
           });
         }
         // Push items immediately to queue (data might be missing but filled later)
@@ -458,6 +463,23 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   finalQueue.sort((a, b) => {
     if (a.zIndex !== b.zIndex) return a.zIndex - b.zIndex;
     return a.domOrder - b.domOrder;
+  });
+
+  // Assign triggers to animations (Ensures items sharing same fragment order trigger together)
+  const triggeredOrders = new Set();
+  finalQueue.forEach(item => {
+    if (item.options?.animation?.order !== undefined) {
+      if (!item.options.animation.trigger) {
+        if (triggeredOrders.has(item.options.animation.order)) {
+          item.options.animation.trigger = 'withPrevious';
+        } else {
+          item.options.animation.trigger = 'onClick';
+          triggeredOrders.add(item.options.animation.order);
+        }
+      } else if (item.options.animation.trigger === 'onClick') {
+        triggeredOrders.add(item.options.animation.order);
+      }
+    }
   });
 
   // 4. Add to Slide
