@@ -300,7 +300,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   for (let p = root.parentElement; p && p !== document.body; p = p.parentElement) {
     const s = window.getComputedStyle(p);
     if (s.transform !== 'none' || s.zoom !== '1') {
-      resets.push(tempOverride(p, { transform: 'none', zoom: '1' }));
+      resets.push(tempOverride(p, { transform: 'none', zoom: '1', transition: 'none' }));
     }
   }
 
@@ -311,11 +311,12 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
       opacity: '1',
       visibility: 'visible',
       transform: 'none',
+      transition: 'none',
     })
   );
 
   root.querySelectorAll('.fragment').forEach((f) => {
-    resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible' }));
+    resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible', transition: 'none' }));
   });
 
   // Ensure element is in view and has finished layout recalculation
@@ -324,7 +325,9 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   void root.offsetHeight;
 
   // Brief timeout to let the browser recalculate styles after resetting transforms
-  await new Promise((r) => setTimeout(r, 50));
+  // Double requestAnimationFrame ensures the browser has truly painted the un-transformed frame
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await new Promise((r) => setTimeout(r, 150));
 
   const rootRect = root.getBoundingClientRect();
   const PPTX_WIDTH_IN = 10;
