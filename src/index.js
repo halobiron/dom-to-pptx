@@ -701,6 +701,40 @@ function isIconElement(node) {
   return false;
 }
 
+function getBorderRadii(style) {
+  return {
+    tl: parseFloat(style.borderTopLeftRadius) || 0,
+    tr: parseFloat(style.borderTopRightRadius) || 0,
+    br: parseFloat(style.borderBottomRightRadius) || 0,
+    bl: parseFloat(style.borderBottomLeftRadius) || 0,
+  };
+}
+
+function createAsyncImageJob(itemOpts, dataFetcher) {
+  const item = {
+    type: 'image',
+    zIndex: itemOpts.zIndex,
+    domOrder: itemOpts.domOrder,
+    options: { x: itemOpts.x, y: itemOpts.y, w: itemOpts.w, h: itemOpts.h, rotate: itemOpts.rotate, data: null },
+  };
+
+  const job = async () => {
+    try {
+      const data = await dataFetcher();
+      if (data && (typeof data !== 'string' || data.length > 10)) {
+        item.options.data = data;
+      } else {
+        item.skip = true;
+      }
+    } catch (e) {
+      console.warn('Async image job failed:', e);
+      item.skip = true;
+    }
+  };
+
+  return { items: [item], job, stopRecursion: true };
+}
+
 /**
  * Replaces createRenderItem.
  * Returns { items: [], job: () => Promise, stopRecursion: boolean }
@@ -814,76 +848,33 @@ function prepareRenderItem(
   }
 
   if (node.tagName === 'CANVAS') {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      try {
-        // Direct data extraction from the canvas element
-        // This preserves the exact current state of the chart
-        const dataUrl = node.toDataURL('image/png');
-
-        // Basic validation
-        if (dataUrl && dataUrl.length > 10) {
-          item.options.data = dataUrl;
-        } else {
-          item.skip = true;
-        }
-      } catch (e) {
-        // Tainted canvas (CORS issues) will throw here
-        console.warn('Failed to capture canvas content:', e);
-        item.skip = true;
-      }
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => node.toDataURL('image/png')
+    );
   }
 
   // --- ASYNC JOB: SVG Tags ---
   if (node.nodeName.toUpperCase() === 'SVG') {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { data: null, x, y, w, h, rotate: rotation },
-    };
-
-    const job = async () => {
-      // Use svgToSvg for vector output (Convert to Shape in PowerPoint)
-      // Use svgToPng for rasterized output (pixel perfect)
-      const converter = globalOptions.svgAsVector ? svgToSvg : svgToPng;
-      const processed = await converter(node);
-      if (processed) item.options.data = processed;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => {
+        const converter = globalOptions.svgAsVector ? svgToSvg : svgToPng;
+        return converter(node);
+      }
+    );
   }
 
   // --- ASYNC JOB: IMG Tags ---
   if (node.tagName === 'IMG') {
-    let radii = {
-      tl: parseFloat(style.borderTopLeftRadius) || 0,
-      tr: parseFloat(style.borderTopRightRadius) || 0,
-      br: parseFloat(style.borderBottomRightRadius) || 0,
-      bl: parseFloat(style.borderBottomLeftRadius) || 0,
-    };
+    let radii = getBorderRadii(style);
 
     const hasAnyRadius = radii.tl > 0 || radii.tr > 0 || radii.br > 0 || radii.bl > 0;
     if (!hasAnyRadius) {
       const parent = node.parentElement;
       const parentStyle = window.getComputedStyle(parent);
       if (parentStyle.overflow !== 'visible') {
-        const pRadii = {
-          tl: parseFloat(parentStyle.borderTopLeftRadius) || 0,
-          tr: parseFloat(parentStyle.borderTopRightRadius) || 0,
-          br: parseFloat(parentStyle.borderBottomRightRadius) || 0,
-          bl: parseFloat(parentStyle.borderBottomLeftRadius) || 0,
-        };
+        const pRadii = getBorderRadii(parentStyle);
         const pRect = parent.getBoundingClientRect();
         if (Math.abs(pRect.width - rect.width) < 5 && Math.abs(pRect.height - rect.height) < 5) {
           radii = pRadii;
@@ -894,62 +885,30 @@ function prepareRenderItem(
     const objectFit = style.objectFit || 'fill'; // default CSS behavior is fill
     const objectPosition = style.objectPosition || '50% 50%';
 
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      const processed = await getProcessedImage(
-        node.src,
-        widthPx,
-        heightPx,
-        radii,
-        objectFit,
-        objectPosition
-      );
-      if (processed) item.options.data = processed;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => getProcessedImage(node.src, widthPx, heightPx, radii, objectFit, objectPosition)
+    );
   }
 
   // --- ASYNC JOB: Icons and Other Elements ---
   if (isIconElement(node)) {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-    const job = async () => {
-      const pngData = await elementToCanvasImage(node, widthPx, heightPx);
-      if (pngData) item.options.data = pngData;
-      else item.skip = true;
-    };
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => elementToCanvasImage(node, widthPx, heightPx)
+    );
   }
 
   // Radii logic
+  const radii = getBorderRadii(style);
   const borderRadiusValue = parseFloat(style.borderRadius) || 0;
-  const borderBottomLeftRadius = parseFloat(style.borderBottomLeftRadius) || 0;
-  const borderBottomRightRadius = parseFloat(style.borderBottomRightRadius) || 0;
-  const borderTopLeftRadius = parseFloat(style.borderTopLeftRadius) || 0;
-  const borderTopRightRadius = parseFloat(style.borderTopRightRadius) || 0;
 
   const hasPartialBorderRadius =
-    (borderBottomLeftRadius > 0 && borderBottomLeftRadius !== borderRadiusValue) ||
-    (borderBottomRightRadius > 0 && borderBottomRightRadius !== borderRadiusValue) ||
-    (borderTopLeftRadius > 0 && borderTopLeftRadius !== borderRadiusValue) ||
-    (borderTopRightRadius > 0 && borderTopRightRadius !== borderRadiusValue) ||
-    (borderRadiusValue === 0 &&
-      (borderBottomLeftRadius ||
-        borderBottomRightRadius ||
-        borderTopLeftRadius ||
-        borderTopRightRadius));
+    (radii.bl > 0 && radii.bl !== borderRadiusValue) ||
+    (radii.br > 0 && radii.br !== borderRadiusValue) ||
+    (radii.tl > 0 && radii.tl !== borderRadiusValue) ||
+    (radii.tr > 0 && radii.tr !== borderRadiusValue) ||
+    (borderRadiusValue === 0 && (radii.bl || radii.br || radii.tl || radii.tr));
 
   // --- PRIORITY SVG: Solid Fill with Partial Border Radius (Vector Cone/Tab) ---
   // Fix for "missing cone": Prioritize SVG vector generation over Raster Canvas for simple shapes with partial radii.
@@ -962,12 +921,7 @@ function prepareRenderItem(
   const hasContent = node.textContent.trim().length > 0 || node.children.length > 0;
 
   if (hasPartialBorderRadius && tempBg.hex && !isTxt && !hasContent) {
-    const shapeSvg = generateCustomShapeSVG(widthPx, heightPx, tempBg.hex, tempBg.opacity, {
-      tl: parseFloat(style.borderTopLeftRadius) || 0,
-      tr: parseFloat(style.borderTopRightRadius) || 0,
-      br: parseFloat(style.borderBottomRightRadius) || 0,
-      bl: parseFloat(style.borderBottomLeftRadius) || 0,
-    });
+    const shapeSvg = generateCustomShapeSVG(widthPx, heightPx, tempBg.hex, tempBg.opacity, radii);
 
     return {
       items: [
@@ -991,20 +945,10 @@ function prepareRenderItem(
     x += marginLeft * PX_TO_INCH * config.scale;
     y += marginTop * PX_TO_INCH * config.scale;
 
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      const canvasImageData = await elementToCanvasImage(node, widthPx, heightPx);
-      if (canvasImageData) item.options.data = canvasImageData;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => elementToCanvasImage(node, widthPx, heightPx)
+    );
   }
 
   // --- SYNC: Standard CSS Extraction ---
@@ -1205,12 +1149,7 @@ function prepareRenderItem(
         heightPx,
         bgColorObj.hex,
         bgColorObj.opacity,
-        {
-          tl: parseFloat(style.borderTopLeftRadius) || 0,
-          tr: parseFloat(style.borderTopRightRadius) || 0,
-          br: parseFloat(style.borderBottomRightRadius) || 0,
-          bl: parseFloat(style.borderBottomLeftRadius) || 0,
-        }
+        radii
       );
 
       items.push({
