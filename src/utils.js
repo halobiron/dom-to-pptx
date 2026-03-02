@@ -34,7 +34,7 @@ function getTableBorder(style, side, scale) {
 /**
  * Extracts native table data for PptxGenJS.
  */
-export function extractTableData(node, scale) {
+export function extractTableData(node, scale, intrinsicScale = scale) {
   const rows = [];
   const colWidths = [];
 
@@ -63,7 +63,7 @@ export function extractTableData(node, scale) {
       const cellText = cell.innerText.replace(/[\n\r\t]+/g, ' ').trim();
 
       // A. Text Style
-      const textStyle = getTextStyle(style, scale);
+      const textStyle = getTextStyle(style, intrinsicScale);
 
       // B. Cell Background
       const bg = parseColor(style.backgroundColor);
@@ -80,7 +80,7 @@ export function extractTableData(node, scale) {
 
       // D. Padding (Margins in PPTX)
       // CSS Padding px -> PPTX Margin pt
-      const padding = getPadding(style, scale);
+      const padding = getPadding(style, intrinsicScale);
       // getPadding returns [top, right, bottom, left] in inches relative to scale
       // PptxGenJS expects points (pt) for margin: [t, r, b, l]
       // or discrete properties. Let's use discrete for clarity.
@@ -92,10 +92,10 @@ export function extractTableData(node, scale) {
       ];
 
       // E. Borders
-      const borderTop = getTableBorder(style, 'Top', scale);
-      const borderRight = getTableBorder(style, 'Right', scale);
-      const borderBottom = getTableBorder(style, 'Bottom', scale);
-      const borderLeft = getTableBorder(style, 'Left', scale);
+      const borderTop = getTableBorder(style, 'Top', intrinsicScale);
+      const borderRight = getTableBorder(style, 'Right', intrinsicScale);
+      const borderBottom = getTableBorder(style, 'Bottom', intrinsicScale);
+      const borderLeft = getTableBorder(style, 'Left', intrinsicScale);
 
       // F. Construct Cell Object
       rowData.push({
@@ -147,6 +147,26 @@ export function isClippedByParent(node) {
     parent = parent.parentElement;
   }
   return false;
+}
+
+/**
+ * Calculates the accumulated scale from CSS transforms up to a specified limit.
+ */
+export function getAccumulatedScale(node, limitNode, startStyle) {
+  let scale = 1;
+
+  for (let curr = node; curr && curr !== document.body && curr !== limitNode; curr = curr.parentElement) {
+    const { transform } = curr === node && startStyle ? startStyle : window.getComputedStyle(curr);
+
+    if (transform && transform !== 'none') {
+      try {
+        const m = new DOMMatrix(transform);
+        scale *= Math.hypot(m.a, m.b); // Use uniform scale factor
+      } catch (e) { }
+    }
+  }
+
+  return scale;
 }
 
 // Helper to save gradient text
@@ -336,10 +356,20 @@ export function generateCustomShapeSVG(w, h, color, opacity, radii) {
   return 'data:image/svg+xml;base64,' + btoa(svg);
 }
 
-// --- REPLACE THE EXISTING parseColor FUNCTION ---
 export function parseColor(str) {
   if (!str || str === 'transparent' || str.trim() === 'rgba(0, 0, 0, 0)') {
     return { hex: null, opacity: 0 };
+  }
+
+  if (str.includes('var(')) {
+    try {
+      const tempDiv = document.createElement('div');
+      tempDiv.style.color = str;
+      tempDiv.style.display = 'none';
+      document.body.appendChild(tempDiv);
+      str = window.getComputedStyle(tempDiv).color;
+      document.body.removeChild(tempDiv);
+    } catch (e) { }
   }
 
   const ctx = getCtx();
@@ -455,10 +485,13 @@ export function getTextStyle(style, scale) {
   if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
+  // Calculate font size using standard PX-to-PT conversion (0.75) and apply scaling
+  const fontSize = Math.round(fontSizePx * scale * 0.72);
+
   return {
     color: colorObj.hex || '000000',
     fontFace: style.fontFamily.split(',')[0].replace(/['"]/g, ''),
-    fontSize: Math.floor(fontSizePx * 0.75 * scale),
+    fontSize: fontSize,
     bold: parseInt(style.fontWeight) >= 600,
     italic: style.fontStyle === 'italic',
     underline: style.textDecoration.includes('underline'),
@@ -524,8 +557,16 @@ export function isTextContainer(node) {
     const hasVisibleBg = bgColor.hex && bgColor.opacity > 0;
     const hasBorder =
       parseFloat(style.borderWidth) > 0 && parseColor(style.borderColor).opacity > 0;
+    const hasBorderRadius = parseFloat(style.borderRadius) > 0;
 
     if (hasVisibleBg || hasBorder) {
+      // If it has border radius or significant padding, it's a styled object (like a button or badge),
+      // not a simple text highlight. We treat it as a separate layout block to preserve shape rendering.
+      const padding = parseFloat(style.paddingTop) || parseFloat(style.paddingLeft) || 0;
+      if (hasBorderRadius || padding > 5) {
+        return false;
+      }
+
       // Relaxed check: Allow inline elements with background/border to be treated as text.
       // They will be rendered as highlighted text runs (no border support in text runs though).
       // This preserves text flow for "badges".
@@ -956,4 +997,21 @@ export async function getAutoDetectedFonts(usedFamilies) {
   }
 
   return foundFonts;
+}
+
+/**
+ * Temporarily override element styles and return a function to restore them.
+ */
+export function tempOverride(el, styles) {
+  const original = {};
+  for (const [prop, val] of Object.entries(styles)) {
+    original[prop] = el.style.getPropertyValue(prop);
+    el.style.setProperty(prop, val, 'important');
+  }
+  return () => {
+    for (const prop in styles) {
+      if (original[prop]) el.style.setProperty(prop, original[prop]);
+      else el.style.removeProperty(prop);
+    }
+  };
 }

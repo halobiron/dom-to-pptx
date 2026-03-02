@@ -109,10 +109,9 @@ If using `<style>` tags, ensure styles are applied correctly during export:
 
 | Property             | Status             | Alternative                           |
 | -------------------- | ------------------ | ------------------------------------- |
-| `backdrop-filter`    | ❌ Not Supported   | Use semi-transparent background color |
+| `backdrop-filter`    | ⚠️ Partial Support | Simulated via html2canvas             |
 | `transform: scale()` | ❌ Not Supported   | Set element dimensions directly       |
-| `animation`          | ❌ Not Supported   | None                                  |
-| `transition`         | ❌ Not Supported   | None                                  |
+| animation            | ✅ Supported       | Via Reveal.js `.fragment` classes     |
 | Radial Gradients     | ⚠️ Limited Support | Recommended to use linear gradients   |
 | `text-shadow`        | ⚠️ Limited Support | Might not be fully rendered           |
 
@@ -190,6 +189,34 @@ await exportToPptx('#chart-container', {
 
 ---
 
+## Slide Transitions (New in v1.2.0)
+
+`dom-to-pptx` supports global and per-slide transitions.
+
+### 1. Global Transition
+
+You can set a global transition for all slides in the `options`:
+
+```javascript
+await exportToPptx('#slide', {
+  transition: 'fade', // fade, slide, convex, concave, zoom, push, wipe, reveal
+});
+```
+
+### 2. Per-Slide Transition
+
+You can also specify transitions on individual elements using a `data-transition` attribute. This attribute will take priority over the global option.
+
+```html
+<div class="slide" data-transition="zoom">...</div>
+```
+
+### 3. Reveal.js Integration
+
+If you are using **Reveal.js**, the library will automatically attempt to detect the current transition from your Reveal configuration if no explicit option is provided.
+
+---
+
 ## Font Handling
 
 ### Automatic Font Embedding
@@ -229,6 +256,44 @@ await exportToPptx('#slide', {
     },
   ],
 });
+```
+
+---
+
+## Animations (New in v1.2.0)
+
+`dom-to-pptx` supports native PowerPoint animations via the Reveal.js **fragment** system.
+
+### How to use
+
+Simply add the `fragment` class to any element. You can also specify the animation type using standard Reveal.js classes.
+
+```html
+<!-- Default fade-in -->
+<div class="fragment">This will appear on click</div>
+
+<!-- Specific animations -->
+<div class="fragment fade-up">Fly in from bottom</div>
+<div class="fragment zoom-in">Zoom in effect</div>
+<div class="fragment wipe">Wipe effect</div>
+```
+
+### Supported Animation Types
+
+- `fade-in` (Default)
+- `fade-up`, `fade-down`, `fade-left`, `fade-right` (Fly-in)
+- `slide-up`, `slide-down`, `slide-left`, `slide-right` (Fly-in)
+- `zoom-in`, `zoom-out`
+- `wipe`
+- `peak`
+
+### Animation Order
+
+Use the `data-fragment-index` attribute to control the sequence of animations:
+
+```html
+<p class="fragment" data-fragment-index="1">First</p>
+<p class="fragment" data-fragment-index="2">Second</p>
 ```
 
 ---
@@ -354,6 +419,8 @@ exportToPptx(elementOrSelector, options);
 | `options.fonts`          | `Array<{name, url}>`             | Manually specify fonts                        |
 | `options.skipDownload`   | `boolean`                        | Do not auto-download; return Blob             |
 | `options.svgAsVector`    | `boolean`                        | Preserve SVGs as vectors (default: `false`)   |
+| `options.transition`     | `string`                         | Global slide transition (e.g., `"fade"`)      |
+| `options.margin`         | `number`                         | Slide margin as fraction (e.g., `0.05`)       |
 | `options.listConfig`     | `object`                         | List style configuration                      |
 
 ### Returns

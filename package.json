@@ -1,6 +1,6 @@
 {
   "name": "@halobiron/dom-to-pptx",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "description": "A client-side library that converts any HTML element into a fully editable PowerPoint slide. **dom-to-pptx** transforms DOM structures into pixel-accurate `.pptx` content, preserving gradients, shadows, rounded images, and responsive layouts. It translates CSS Flexbox/Grid, linear-gradients, box-shadows, and typography into native PowerPoint shapes, enabling precise, design-faithful slide generation directly from the browser.",
   "main": "dist/dom-to-pptx.cjs",
   "module": "dist/dom-to-pptx.mjs",
@@ -76,11 +76,11 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@bapunhansdah/pptxgenjs": "^1.1.3",
     "fonteditor-core": "^2.6.3",
     "html2canvas": "^1.4.1",
     "jszip": "^3.10.1",
     "opentype.js": "^1.3.4",
-    "pako": "^2.1.0",
-    "pptxgenjs": "^3.12.0"
+    "pako": "^2.1.0"
   }
 }

@@ -1,16 +1,17 @@
 # dom-to-pptx
 
-**The High-Fidelity HTML to PowerPoint Converter (v1.1.5)**
+**The High-Fidelity HTML to PowerPoint Converter (v1.2.0)**
 
 Most HTML-to-PPTX libraries fail when faced with modern web design. They break on gradients, misalign text, ignore rounded corners, or simply take a screenshot (which isn't editable).
 
 **dom-to-pptx** is different. It is a **Coordinate Scraper & Style Engine** that traverses your DOM, calculates the exact computed styles of every element (Flexbox/Grid positions, complex gradients, shadows), and mathematically maps them to native PowerPoint shapes and text boxes. The result is a fully editable, vector-sharp presentation that looks exactly like your web view.
 
-### 🛠️ Updates in v1.1.5
+### 🛠️ Highlights in v1.2.0
 
-- **SVG Vector Export:** New `svgAsVector` option keeps SVG elements as vectors instead of rasterizing them. This enables "Convert to Shape" in PowerPoint for editable charts and graphics.
-- **Fontawesome Icon partially rendering:** Solved icon clipping issues by injecting a global style tag to enforce FontAwesome font family and correct image display properties during potential rasterization.
-- **Recursion Logic** Resolved recursion issues where containers were incorrectly rasterized as images, making children uneditable.
+- **Native Animations (Fragments):** Full support for Reveal.js fragments. Elements with `.fragment` classes are converted into native PowerPoint animations (Fade, Fly-in, Zoom, etc.).
+- **Slide Transitions:** Global and per-slide transitions (Fade, Slide, Zoom, etc.) are now preserved in the PPTX.
+- **Table & Canvas Support:** Native HTML tables and `<canvas>` elements (from libraries like ECharts) are now correctly rendered.
+- **SVG Vector Export:** Keeps SVG elements as vectors for "Convert to Shape" in PowerPoint.
 
 ## Features
 
@@ -294,6 +295,8 @@ Returns: `Promise<Blob>` - Resolves with the generated PPTX file data (Blob).
 | `fonts`          | `Array`   | `[]`            | Manual array of font objects: `{ name, url }`.                                                                |
 | `skipDownload`   | `boolean` | `false`         | If `true`, the file is not downloaded automatically. Use the returned `Blob` for custom handling (upload).    |
 | `svgAsVector`    | `boolean` | `false`         | If `true`, keeps SVG elements as vectors (not rasterized). Enables "Convert to Shape" in PowerPoint.          |
+| `transition`     | `string`  | `undefined`     | Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal).                             |
+| `margin`         | `number`  | `0`             | Slide margin as a fraction (e.g. 0.05 for 5% margin).                                                         |
 | `listConfig`     | `object`  | `undefined`     | Global overrides for list styles. Structure: `{ color: string, spacing: { before: number, after: number } }`. |
 
 **List Configuration Example:**

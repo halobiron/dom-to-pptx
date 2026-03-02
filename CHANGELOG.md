@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-03-02
+
+### Added
+
+- **Slide Transitions**: Added support for global and per-slide transitions (via `options.transition` or `data-transition` attribute). Detects Reveal.js transitions automatically.
+- **Slide Margin**: Added `options.margin` to set a global margin for all slides.
+- **Animation Support (Fragments)**: Full support for Reveal.js fragments. Elements with the `.fragment` class are now converted into native PowerPoint animations (Fade, Fly-in, Zoom, Wipe, etc.).
+
 ## [1.1.5] - 2026-02-07
 
 ### Added
