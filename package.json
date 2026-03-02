@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/atharva9167j/dom-to-pptx.git"
+    "url": "git+https://github.com/halobiron/dom-to-pptx.git"
   },
   "keywords": [
     "pptx",
@@ -53,10 +53,10 @@
     "css-grid",
     "typography"
   ],
-  "author": "Atharva Dharmendra Jagtap <atharvaj321@gmail.com>",
+  "author": "Halobiron <tranhailong2407@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/atharva9167j/dom-to-pptx/issues"
+    "url": "https://github.com/halobiron/dom-to-pptx/issues"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
