@@ -72,14 +72,14 @@ function hasVisibleContent(element) {
 function getSlideTransition(element, globalTransition) {
   // Check for data-transition attribute on the element
   let transition = element.getAttribute('data-transition');
-  
+
   // If no data-transition, use global transition
   if (!transition && globalTransition) {
     transition = globalTransition;
   }
-  
+
   if (!transition) return null;
-  
+
   // Map to PPTX transition
   return TRANSITION_MAP[transition.toLowerCase()] || null;
 }
@@ -94,9 +94,9 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
   if (!slideTransitions.some(t => t)) {
     return pptxBlob;
   }
-  
+
   const zip = await JSZip.loadAsync(pptxBlob);
-  
+
   const transitionXmlMap = {
     'fade': '<p:transition spd="med" dur="500"><p:fade thruBlk="false"/></p:transition>',
     'push': '<p:transition spd="med" dur="500"><p:push dir="l"/></p:transition>',
@@ -104,26 +104,26 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
     'wipe': '<p:transition spd="med" dur="500"><p:wipe dir="l"/></p:transition>',
     'reveal': '<p:transition spd="med" dur="500"><p:reveal dir="l"/></p:transition>',
   };
-  
+
   // Process each slide
   for (let i = 0; i < slideTransitions.length; i++) {
     const transition = slideTransitions[i];
     if (!transition) continue;
-    
+
     const slideFile = `ppt/slides/slide${i + 1}.xml`;
     const file = zip.file(slideFile);
-    
+
     let xmlStr = await file.async('string');
     const transitionXml = transitionXmlMap[transition];
     // Remove existing transitions
     xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
-    
+
     // Add transition after </p:cSld>
     xmlStr = xmlStr.replace('</p:cSld>', '</p:cSld>' + transitionXml);
-    
+
     zip.file(slideFile, xmlStr);
   }
-  
+
   return await zip.generateAsync({ type: 'blob' });
 }
 
@@ -161,12 +161,12 @@ export async function exportToPptx(target, options = {}) {
   pptx.layout = 'LAYOUT_16x9';
 
   const elements = Array.isArray(target) ? target : [target];
-  
+
   // Get global transition from multiple sources (in priority order):
   // 1. Explicit option passed to exportToPptx
   // 2. Reveal.js global config (if available)
   let globalTransition = options.transition || null;
-  
+
   if (!globalTransition && typeof window !== 'undefined' && window.Reveal) {
     try {
       const config = window.Reveal.getConfig?.();
@@ -177,7 +177,7 @@ export async function exportToPptx(target, options = {}) {
       // Silently ignore if Reveal.js is not available
     }
   }
-  
+
   // Collect slide transitions
   const slideTransitions = [];
 
@@ -186,18 +186,18 @@ export async function exportToPptx(target, options = {}) {
     if (!root) {
       continue;
     }
-    
+
     // Skip completely empty slides (no actual text/image content, only background)
     const hasContent = hasVisibleContent(root);
     if (!hasContent) {
       console.warn('Slide is empty, skipping:', el);
       continue;
     }
-    
+
     // Collect transition for this slide
     const slideTransition = getSlideTransition(root, globalTransition);
     slideTransitions.push(slideTransition);
-    
+
     const slide = pptx.addSlide();
     await processSlide(root, slide, pptx, options);
   }
@@ -258,13 +258,13 @@ export async function exportToPptx(target, options = {}) {
 
     await embedder.updateFiles();
     let blobWithFonts = await embedder.generateBlob();
-    
+
     // Apply transitions
     finalBlob = await applyTransitionsToBlob(blobWithFonts, slideTransitions);
   } else {
     // No fonts to embed
     let initialBlob = await pptx.write({ outputType: 'blob' });
-    
+
     // Apply transitions
     finalBlob = await applyTransitionsToBlob(initialBlob, slideTransitions);
   }
@@ -304,6 +304,16 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     }
   }
 
+  // Force the slide itself to be visible for capture
+  resets.push(
+    tempOverride(root, {
+      display: 'block',
+      opacity: '1',
+      visibility: 'visible',
+      transform: 'none',
+    })
+  );
+
   root.querySelectorAll('.fragment').forEach((f) => {
     resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible' }));
   });
@@ -312,7 +322,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   root.scrollIntoView({ behavior: 'auto' });
   // Force a synchronous layout recalculation by accessing offsetHeight
   void root.offsetHeight;
-  
+
   // Brief timeout to let the browser recalculate styles after resetting transforms
   await new Promise((r) => setTimeout(r, 50));
 
@@ -500,6 +510,9 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
       });
     }
   }
+
+  // Restore overrides
+  resets.forEach((restore) => restore());
 }
 
 /**
@@ -1027,7 +1040,7 @@ function prepareRenderItem(
   // If node contains a UL/OL as a direct child, DON'T treat it as pure text container
   // Let the UL/OL be processed separately for proper bullet rendering
   const hasDirectList = Array.from(node.children).some((c) => c.tagName === 'UL' || c.tagName === 'OL');
-  
+
   if (isText && !hasDirectList) {
     const textParts = [];
     let trimNextLeading = false;
@@ -1341,45 +1354,45 @@ function isComplexHierarchy(root) {
 function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions) {
   const listItems = [];
   const liChildren = Array.from(node.children).filter(c => c.tagName === 'LI');
-  
+
   liChildren.forEach((li, idx) => {
     const liStyle = window.getComputedStyle(li);
     const bullet = getBulletConfig(node, li, liStyle);
-    
+
     if (bullet) {
       const visualIndent = (li.getBoundingClientRect().left - node.getBoundingClientRect().left) * 0.75 * config.scale;
       if (visualIndent > 0) bullet.indent = visualIndent;
     }
-    
+
     const parts = collectListParts(li, liStyle, intrinsicScale, config.fontScaleFactor);
     if (parts.length === 0) return;
-    
+
     parts.forEach(p => { if (!p.options) p.options = {}; });
-    
+
     if (bullet) {
       parts.unshift({
         text: '\u200B',
         options: { ...parts[0]?.options, bullet, color: bullet.color || parts[0]?.options?.color }
       });
     }
-    
+
     const mt = parseFloat(liStyle.marginTop) || 0;
     const mb = parseFloat(liStyle.marginBottom) || 0;
     if (mt > 0) parts[0].options.paraSpaceBefore = mt * 0.75 * intrinsicScale;
     if (mb > 0) parts[0].options.paraSpaceAfter = mb * 0.75 * intrinsicScale;
     if (idx < liChildren.length - 1) parts[parts.length - 1].options.breakLine = true;
-    
+
     listItems.push(...parts);
   });
-  
+
   if (listItems.length === 0) return null;
-  
+
   const items = [];
   const bgColorObj = parseColor(style.backgroundColor);
   if (bgColorObj.hex && bgColorObj.opacity > 0) {
     items.push({ type: 'shape', zIndex, domOrder, shapeType: 'rect', options: { x, y, w, h, fill: { color: bgColorObj.hex } } });
   }
-  
+
   items.push({
     type: 'text',
     zIndex: zIndex + 1,
@@ -1387,30 +1400,30 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
     textParts: listItems,
     options: { x, y, w: w + 0.05, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
   });
-  
+
   return { items, stopRecursion: true };
 }
 
 /** Get bullet config for a list item */
 function getBulletConfig(node, li, liStyle) {
   let listStyleType = liStyle.listStyleType || 'disc';
-  
+
   // Check for custom icons from ::before
   if (listStyleType === 'none') {
     const beforeStyle = window.getComputedStyle(li, '::before');
     const content = beforeStyle.content?.replace(/^['"]|['"]$/g, '').trim();
-    
+
     if (content && !/^[\d.\s]*$/.test(content)) {
       const color = parseColor(beforeStyle.color).hex || '000000';
       return { type: 'bullet', char: content, color: color.startsWith('#') ? color : `#${color}` };
     }
-    
+
     listStyleType = node.tagName === 'OL' ? 'decimal' : 'disc';
   }
-  
+
   if (node.tagName === 'OL' || listStyleType === 'decimal') return { type: 'number' };
   if (listStyleType === 'none') return null;
-  
+
   const charMap = { disc: '2022', circle: '25CB', square: '25A0' };
   return { type: 'bullet', char: charMap[listStyleType] || charMap.disc, color: '#000000' };
 }
