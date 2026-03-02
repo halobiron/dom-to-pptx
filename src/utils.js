@@ -153,21 +153,20 @@ export function isClippedByParent(node) {
  * Calculates the accumulated scale from CSS transforms up to a specified limit.
  */
 export function getAccumulatedScale(node, limitNode, startStyle) {
-  let accX = 1, accY = 1;
+  let scale = 1;
 
   for (let curr = node; curr && curr !== document.body && curr !== limitNode; curr = curr.parentElement) {
     const { transform } = curr === node && startStyle ? startStyle : window.getComputedStyle(curr);
 
     if (transform && transform !== 'none') {
       try {
-        const { a, b, c, d } = new DOMMatrix(transform);
-        accX *= Math.hypot(a, b);
-        accY *= Math.hypot(c, d);
+        const m = new DOMMatrix(transform);
+        scale *= Math.hypot(m.a, m.b); // Use uniform scale factor
       } catch (e) { }
     }
   }
 
-  return { accScaleX: accX, accScaleY: accY, avgAccScale: (accX + accY) / 2 };
+  return scale;
 }
 
 // Helper to save gradient text
@@ -449,7 +448,7 @@ export function getTextStyle(style, scale) {
   let colorObj = parseColor(style.color);
 
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
-  if (colorObj.opacity === 0 && (bgClip === 'text' || bgClip === '"text"')) {
+  if (colorObj.opacity === 0 && bgClip === 'text') {
     const fallback = getGradientFallbackColor(style.backgroundImage);
     if (fallback) colorObj = parseColor(fallback);
   }

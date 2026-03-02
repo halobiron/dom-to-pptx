@@ -762,8 +762,8 @@ function prepareRenderItem(
     return null;
   }
 
-  const { avgAccScale, accScaleX, accScaleY } = getAccumulatedScale(scaleNode, config.root.parentElement, style);
-  const intrinsicScale = config.scale * avgAccScale;
+  const accScale = getAccumulatedScale(scaleNode, config.root.parentElement, style);
+  const intrinsicScale = config.scale * accScale;
 
   // 1. Text Node Handling
   if (isTextNode) {
@@ -809,8 +809,8 @@ function prepareRenderItem(
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
   // Use scaled offsetWidth if available, else rect.width
-  const widthPx = node.offsetWidth ? (node.offsetWidth * accScaleX) : rect.width;
-  const heightPx = node.offsetHeight ? (node.offsetHeight * accScaleY) : rect.height;
+  const widthPx = node.offsetWidth ? (node.offsetWidth * accScale) : rect.width;
+  const heightPx = node.offsetHeight ? (node.offsetHeight * accScale) : rect.height;
 
   const unrotatedW = widthPx * PX_TO_INCH * config.scale;
   const unrotatedH = heightPx * PX_TO_INCH * config.scale;
@@ -1201,7 +1201,6 @@ function prepareRenderItem(
         shapeType = pptx.ShapeType.roundRect;
         let r = radiusPx / minDimension;
         if (r > 0.5) r = 0.5;
-        if (minDimension < 100) r = r * 0.25; // Small size adjustment for small shapes
 
         shapeOpts.rectRadius = r;
       }
