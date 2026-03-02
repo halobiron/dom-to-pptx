@@ -1,5 +1,5 @@
 // src/index.js
-import * as PptxGenJSImport from 'pptxgenjs';
+import * as PptxGenJSImport from '@bapunhansdah/pptxgenjs';
 import html2canvas from 'html2canvas';
 import { PPTXEmbedFonts } from './font-embedder.js';
 import JSZip from 'jszip';
@@ -26,11 +26,87 @@ import {
   getUsedFontFamilies,
   getAutoDetectedFonts,
   extractTableData,
+  tempOverride,
+  getAccumulatedScale,
 } from './utils.js';
 import { getProcessedImage } from './image-processor.js';
 
 const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
+
+/**
+ * Map Reveal.js transitions to PPTX transition inner XML
+ * Allows for easy addition of new transition types.
+ */
+const TRANSITION_MAP = {
+  'fade': '<p:fade thruBlk="false"/>',
+  'slide': '<p:push dir="l"/>',
+  'push': '<p:push dir="l"/>',
+  'convex': '<p:zoom dir="in"/>',
+  'concave': '<p:zoom dir="in"/>',
+  'zoom': '<p:zoom dir="in"/>',
+  'wipe': '<p:wipe dir="l"/>',
+  'reveal': '<p:reveal dir="l"/>',
+};
+
+/**
+ * Helper functions to trim whitespace while preserving non-breaking spaces (\u00A0)
+ */
+function smartTrimStart(text) {
+  // Only trim regular spaces, tabs, newlines - NOT non-breaking spaces
+  return text.replace(/^[ \t\r\n]+/, '');
+}
+/**
+ * Check if an element has any visible content (text/images/etc)
+ */
+function hasVisibleContent(element) {
+  return element.innerText?.trim().length > 0;
+}
+
+/**
+ * Extract transition from HTML element or use global transition
+ * @param {HTMLElement} element - The slide element
+ * @param {string} globalTransition - Global transition from Reveal config
+ * @returns {string|null} - PPTX transition type
+ */
+function getSlideTransition(element, globalTransition) {
+  const transition = element.getAttribute('data-transition') || globalTransition;
+  return transition ? TRANSITION_MAP[transition.toLowerCase()] || null : null;
+}
+
+/**
+ * Apply transitions to PPTX file using JSZip
+ * @param {Blob} pptxBlob - The generated PPTX blob
+ * @param {Array<string|null>} slideTransitions - Array of transitions for each slide
+ * @returns {Promise<Blob>} - PPTX blob with transitions applied
+ */
+async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
+  if (!slideTransitions.some(t => t)) {
+    return pptxBlob;
+  }
+
+  const zip = await JSZip.loadAsync(pptxBlob);
+
+  // Process each slide
+  for (let i = 0; i < slideTransitions.length; i++) {
+    const transitionKey = slideTransitions[i]; // e.g. 'fade', 'slide'
+    const innerXml = TRANSITION_MAP[transitionKey];
+    if (!innerXml) continue;
+
+    const transitionXml = `<p:transition spd="med" dur="500">${innerXml}</p:transition>`;
+    // Remove existing transitions
+    xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
+
+    // Add transition after </p:cSld>
+    xmlStr = xmlStr.replace('</p:cSld>', '</p:cSld>' + transitionXml);
+
+    zip.file(slideFile, xmlStr);
+  }
+
+  return await zip.generateAsync({ type: 'blob' });
+}
+
+
 
 /**
  * Main export function.
@@ -40,18 +116,18 @@ const PX_TO_INCH = 1 / PPI;
  * @param {boolean} [options.skipDownload=false] - If true, prevents automatic download
  * @param {Object} [options.listConfig] - Config for bullets
  * @param {boolean} [options.svgAsVector=false] - If true, keeps SVG as vector (for Convert to Shape in PowerPoint)
+ * @param {number} [options.margin=0] - Slide margin as a fraction (e.g. 0.1 for 5% margin)
+ * @param {string} [options.transition] - Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal). Overrides Reveal.js config.
+ * @param {Array} [options.fonts] - Array of fonts to embed
+ * @param {boolean} [options.autoEmbedFonts=false] - Auto-detect and embed fonts
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
-  const resolvePptxConstructor = (pkg) => {
-    if (!pkg) return null;
-    if (typeof pkg === 'function') return pkg;
-    if (pkg && typeof pkg.default === 'function') return pkg.default;
-    if (pkg && typeof pkg.PptxGenJS === 'function') return pkg.PptxGenJS;
-    if (pkg && pkg.PptxGenJS && typeof pkg.PptxGenJS.default === 'function')
-      return pkg.PptxGenJS.default;
-    return null;
-  };
+  const resolvePptxConstructor = (pkg) =>
+    typeof pkg === 'function' ? pkg :
+      typeof pkg?.default === 'function' ? pkg.default :
+        typeof pkg?.PptxGenJS === 'function' ? pkg.PptxGenJS :
+          typeof pkg?.PptxGenJS?.default === 'function' ? pkg.PptxGenJS.default : null;
 
   const PptxConstructor = resolvePptxConstructor(PptxGenJS);
   if (!PptxConstructor) throw new Error('PptxGenJS constructor not found.');
@@ -60,12 +136,42 @@ export async function exportToPptx(target, options = {}) {
 
   const elements = Array.isArray(target) ? target : [target];
 
+  // Get global transition from multiple sources (in priority order):
+  // 1. Explicit option passed to exportToPptx
+  // 2. Reveal.js global config (if available)
+  let globalTransition = options.transition || null;
+
+  if (!globalTransition && typeof window !== 'undefined' && window.Reveal) {
+    try {
+      const config = window.Reveal.getConfig?.();
+      if (config && config.transition) {
+        globalTransition = config.transition;
+      }
+    } catch (e) {
+      // Silently ignore if Reveal.js is not available
+    }
+  }
+
+  // Collect slide transitions
+  const slideTransitions = [];
+
   for (const el of elements) {
     const root = typeof el === 'string' ? document.querySelector(el) : el;
     if (!root) {
-      console.warn('Element not found, skipping slide:', el);
       continue;
     }
+
+    // Skip completely empty slides (no actual text/image content, only background)
+    const hasContent = hasVisibleContent(root);
+    if (!hasContent) {
+      console.warn('Slide is empty, skipping:', el);
+      continue;
+    }
+
+    // Collect transition for this slide
+    const slideTransition = getSlideTransition(root, globalTransition);
+    slideTransitions.push(slideTransition);
+
     const slide = pptx.addSlide();
     await processSlide(root, slide, pptx, options);
   }
@@ -125,10 +231,16 @@ export async function exportToPptx(target, options = {}) {
     }
 
     await embedder.updateFiles();
-    finalBlob = await embedder.generateBlob();
+    let blobWithFonts = await embedder.generateBlob();
+
+    // Apply transitions
+    finalBlob = await applyTransitionsToBlob(blobWithFonts, slideTransitions);
   } else {
     // No fonts to embed
-    finalBlob = await pptx.write({ outputType: 'blob' });
+    let initialBlob = await pptx.write({ outputType: 'blob' });
+
+    // Apply transitions
+    finalBlob = await applyTransitionsToBlob(initialBlob, slideTransitions);
   }
 
   // 4. Output Handling
@@ -156,13 +268,53 @@ export async function exportToPptx(target, options = {}) {
  * @param {PptxGenJS} pptx - The main PPTX instance.
  */
 async function processSlide(root, slide, pptx, globalOptions = {}) {
+  // Reset transforms and opacity on parent elements to get accurate measurements and prevent capture issues.
+  const resets = [];
+
+  for (let p = root.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = window.getComputedStyle(p);
+    if (s.transform !== 'none' || s.zoom !== '1') {
+      resets.push(tempOverride(p, { transform: 'none', zoom: '1', transition: 'none' }));
+    }
+  }
+
+  // Force the slide itself to be visible for capture
+  resets.push(
+    tempOverride(root, {
+      display: 'block',
+      opacity: '1',
+      visibility: 'visible',
+      transform: 'none',
+      transition: 'none',
+    })
+  );
+
+  root.querySelectorAll('.fragment').forEach((f) => {
+    resets.push(tempOverride(f, { transform: 'none', opacity: '1', visibility: 'visible', transition: 'none' }));
+  });
+
+  // Ensure element is in view and has finished layout recalculation
+  root.scrollIntoView({ behavior: 'auto' });
+  // Force a synchronous layout recalculation by accessing offsetHeight
+  void root.offsetHeight;
+
+  // Brief timeout to let the browser recalculate styles after resetting transforms
+  // Double requestAnimationFrame ensures the browser has truly painted the un-transformed frame
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await new Promise((r) => setTimeout(r, 150));
+
   const rootRect = root.getBoundingClientRect();
   const PPTX_WIDTH_IN = 10;
   const PPTX_HEIGHT_IN = 5.625;
 
   const contentWidthIn = rootRect.width * PX_TO_INCH;
   const contentHeightIn = rootRect.height * PX_TO_INCH;
-  const scale = Math.min(PPTX_WIDTH_IN / contentWidthIn, PPTX_HEIGHT_IN / contentHeightIn);
+
+  const marginPct = Math.max(0, globalOptions.margin ?? 0.02);
+  const targetW = PPTX_WIDTH_IN * (1 - marginPct * 2);
+  const targetH = PPTX_HEIGHT_IN * (1 - marginPct * 2);
+
+  const scale = Math.min(targetW / contentWidthIn, targetH / contentHeightIn);
 
   const layoutConfig = {
     rootX: rootRect.x,
@@ -176,21 +328,65 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const asyncTasks = []; // Queue for heavy operations (Images, Canvas)
   let domOrderCounter = 0;
 
+  // --- EXTRACT BACKGROUND ---
+  const getHex = (v) => { const c = parseColor(v); return (c?.hex && c.opacity > 0) ? c.hex : null; };
+  const rStyle = window.getComputedStyle(root);
+  const bStyle = window.getComputedStyle(document.body);
+  const slideBgColor = getHex(root.getAttribute('data-background-color')) || getHex(rStyle.backgroundColor) || getHex(bStyle.backgroundColor);
+  const slideBgImg = root.getAttribute('data-background-image') || rStyle.backgroundImage?.match(/url\(["']?(.*?)["']?\)/)?.[1];
+  const slideBgTransparency = (1 - (parseFloat(root.getAttribute('data-background-opacity')) || 1)) * 100;
+
+  if (slideBgColor) {
+    renderQueue.push({
+      type: 'shape', zIndex: -10000, domOrder: -2, shapeType: pptx.ShapeType.rect,
+      options: { x: 0, y: 0, w: PPTX_WIDTH_IN, h: PPTX_HEIGHT_IN, fill: { color: slideBgColor } }
+    });
+  }
+
+  if (slideBgImg) {
+    const item = { type: 'image', zIndex: -9999, domOrder: -1, options: { x: 0, y: 0, w: PPTX_WIDTH_IN, h: PPTX_HEIGHT_IN, transparency: slideBgTransparency, data: null } };
+    renderQueue.push(item);
+    asyncTasks.push(async () => {
+      item.options.data = await getProcessedImage(slideBgImg, PPTX_WIDTH_IN * PPI, PPTX_HEIGHT_IN * PPI, { tl: 0, tr: 0, bl: 0, br: 0 }, 'cover', '50% 50%');
+      if (!item.options.data) item.skip = true;
+    });
+  }
+
   // Sync Traversal Function
-  function collect(node, parentZIndex) {
+  function collect(node, parentZIndex, inheritedAnim = null) {
     const order = domOrderCounter++;
 
     let currentZ = parentZIndex;
     let nodeStyle = null;
+    let currentAnim = inheritedAnim;
     const nodeType = node.nodeType;
 
     if (nodeType === 1) {
       nodeStyle = window.getComputedStyle(node);
+      const isFragment = node.classList && node.classList.contains('fragment');
+
+      if (isFragment) {
+        const classes = node.getAttribute('class') || '';
+        const dirMatch = classes.match(/(fade|slide)-(up|down|left|right)/);
+
+        let config = { type: 'fadein' };
+        if (dirMatch) {
+          const dirs = { up: 'bottom', down: 'top', left: 'right', right: 'left' };
+          config = { type: 'flyin', direction: dirs[dirMatch[2]] };
+        } else if (/\b(zoom|shrink|grow)\b/.test(classes)) {
+          config = { type: 'zoom' };
+        } else if (/\b(wipe|peak)\b/.test(classes)) {
+          config = { type: classes.match(/\b(wipe|peak)\b/)[0] };
+        }
+
+        const order = parseInt(node.getAttribute('data-fragment-index') || 0) + 1;
+        currentAnim = { ...config, order };
+      }
+
       // Optimization: Skip completely hidden elements immediately
       if (
         nodeStyle.display === 'none' ||
-        nodeStyle.visibility === 'hidden' ||
-        nodeStyle.opacity === '0'
+        (!isFragment && !currentAnim && (nodeStyle.visibility === 'hidden' || nodeStyle.opacity === '0'))
       ) {
         return;
       }
@@ -212,6 +408,13 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
 
     if (result) {
       if (result.items) {
+        // Apply inherited animations
+        if (currentAnim) {
+          result.items.forEach(item => {
+            if (!item.options) item.options = {};
+            if (!item.options.animation) item.options.animation = { ...currentAnim };
+          });
+        }
         // Push items immediately to queue (data might be missing but filled later)
         renderQueue.push(...result.items);
       }
@@ -225,12 +428,12 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     // Recurse children synchronously
     const childNodes = node.childNodes;
     for (let i = 0; i < childNodes.length; i++) {
-      collect(childNodes[i], currentZ);
+      collect(childNodes[i], currentZ, currentAnim);
     }
   }
 
   // 1. Traverse and build the structure (Fast)
-  collect(root, 0);
+  collect(root, 0, null);
 
   // 2. Execute all heavy tasks in parallel (Fast)
   if (asyncTasks.length > 0) {
@@ -246,6 +449,23 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   finalQueue.sort((a, b) => {
     if (a.zIndex !== b.zIndex) return a.zIndex - b.zIndex;
     return a.domOrder - b.domOrder;
+  });
+
+  // Assign triggers to animations (Ensures items sharing same fragment order trigger together)
+  const triggeredOrders = new Set();
+  finalQueue.forEach(item => {
+    if (item.options?.animation?.order !== undefined) {
+      if (!item.options.animation.trigger) {
+        if (triggeredOrders.has(item.options.animation.order)) {
+          item.options.animation.trigger = 'withPrevious';
+        } else {
+          item.options.animation.trigger = 'onClick';
+          triggeredOrders.add(item.options.animation.order);
+        }
+      } else if (item.options.animation.trigger === 'onClick') {
+        triggeredOrders.add(item.options.animation.order);
+      }
+    }
   });
 
   // 4. Add to Slide
@@ -266,6 +486,9 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
       });
     }
   }
+
+  // Restore overrides
+  resets.forEach((restore) => restore());
 }
 
 /**
@@ -321,19 +544,15 @@ async function elementToCanvasImage(node, widthPx, heightPx) {
           // (Applies to <i>, <span>, or standard icon classes)
           const tag = clonedNode.tagName;
           if (tag === 'I' || tag === 'SPAN' || clonedNode.className.includes('fa-')) {
-            // Flex center helps align the glyph exactly in the middle of the box
-            // preventing top/bottom cropping due to line-height mismatches.
-            clonedNode.style.display = 'inline-flex';
-            clonedNode.style.justifyContent = 'center';
-            clonedNode.style.alignItems = 'center';
-            clonedNode.style.setProperty('font-family', 'FontAwesome', 'important'); // Ensure root icon gets it too
-
-            // Remove margins that might offset the capture
-            clonedNode.style.margin = '0';
-
-            // Ensure the font fits
-            clonedNode.style.lineHeight = '1';
-            clonedNode.style.verticalAlign = 'middle';
+            Object.assign(clonedNode.style, {
+              display: 'inline-flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '0',
+              lineHeight: '1',
+              verticalAlign: 'middle'
+            });
+            clonedNode.style.setProperty('font-family', 'FontAwesome', 'important');
           }
         }
       },
@@ -361,10 +580,7 @@ async function elementToCanvasImage(node, widthPx, heightPx) {
         ctx.drawImage(canvas, sX, sY, sW, sH, 0, 0, width, height);
 
         // --- Border Radius Clipping (Existing Logic) ---
-        let tl = parseFloat(style.borderTopLeftRadius) || 0;
-        let tr = parseFloat(style.borderTopRightRadius) || 0;
-        let br = parseFloat(style.borderBottomRightRadius) || 0;
-        let bl = parseFloat(style.borderBottomLeftRadius) || 0;
+        let { tl, tr, br, bl } = getBorderRadii(style);
 
         const f = Math.min(
           width / (tl + tr) || Infinity,
@@ -454,6 +670,40 @@ function isIconElement(node) {
   return false;
 }
 
+function getBorderRadii(style) {
+  return {
+    tl: parseFloat(style.borderTopLeftRadius) || 0,
+    tr: parseFloat(style.borderTopRightRadius) || 0,
+    br: parseFloat(style.borderBottomRightRadius) || 0,
+    bl: parseFloat(style.borderBottomLeftRadius) || 0,
+  };
+}
+
+function createAsyncImageJob(itemOpts, dataFetcher) {
+  const item = {
+    type: 'image',
+    zIndex: itemOpts.zIndex,
+    domOrder: itemOpts.domOrder,
+    options: { x: itemOpts.x, y: itemOpts.y, w: itemOpts.w, h: itemOpts.h, rotate: itemOpts.rotate, data: null },
+  };
+
+  const job = async () => {
+    try {
+      const data = await dataFetcher();
+      if (data && (typeof data !== 'string' || data.length > 10)) {
+        item.options.data = data;
+      } else {
+        item.skip = true;
+      }
+    } catch (e) {
+      console.warn('Async image job failed:', e);
+      item.skip = true;
+    }
+  };
+
+  return { items: [item], job, stopRecursion: true };
+}
+
 /**
  * Replaces createRenderItem.
  * Returns { items: [], job: () => Promise, stopRecursion: boolean }
@@ -467,22 +717,30 @@ function prepareRenderItem(
   computedStyle,
   globalOptions = {}
 ) {
+  let scaleNode = node;
+  let style = computedStyle;
+  const isTextNode = node.nodeType === 3;
+
+  if (isTextNode) {
+    if (!node.nodeValue.trim()) return null;
+    scaleNode = node.parentElement;
+    if (!scaleNode || isTextContainer(scaleNode)) return null;
+    style = window.getComputedStyle(scaleNode);
+  } else if (node.nodeType !== 1) {
+    return null;
+  }
+
+  const accScale = getAccumulatedScale(scaleNode, config.root.parentElement, style);
+  const intrinsicScale = config.scale * accScale;
+
   // 1. Text Node Handling
-  if (node.nodeType === 3) {
-    const textContent = node.nodeValue.trim();
-    if (!textContent) return null;
-
-    const parent = node.parentElement;
-    if (!parent) return null;
-
-    if (isTextContainer(parent)) return null; // Parent handles it
-
+  if (isTextNode) {
+    const textContent = smartTrimStart(node.nodeValue);
     const range = document.createRange();
     range.selectNode(node);
     const rect = range.getBoundingClientRect();
     range.detach();
 
-    const style = window.getComputedStyle(parent);
     const widthPx = rect.width;
     const heightPx = rect.height;
     const unrotatedW = widthPx * PX_TO_INCH * config.scale;
@@ -500,18 +758,15 @@ function prepareRenderItem(
           textParts: [
             {
               text: textContent,
-              options: getTextStyle(style, config.scale),
+              options: getTextStyle(style, intrinsicScale),
             },
           ],
-          options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: false },
+          options: { x, y, w: unrotatedW + 0.05, h: unrotatedH, margin: 0, autoFit: true },
         },
       ],
       stopRecursion: false,
     };
   }
-
-  if (node.nodeType !== 1) return null;
-  const style = computedStyle; // Use pre-computed style
 
   const rect = node.getBoundingClientRect();
   if (rect.width < 0.5 || rect.height < 0.5) return null;
@@ -521,8 +776,10 @@ function prepareRenderItem(
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
-  const widthPx = node.offsetWidth || rect.width;
-  const heightPx = node.offsetHeight || rect.height;
+  // Use scaled offsetWidth if available, else rect.width
+  const widthPx = node.offsetWidth ? (node.offsetWidth * accScale) : rect.width;
+  const heightPx = node.offsetHeight ? (node.offsetHeight * accScale) : rect.height;
+
   const unrotatedW = widthPx * PX_TO_INCH * config.scale;
   const unrotatedH = heightPx * PX_TO_INCH * config.scale;
   const centerX = rect.left + rect.width / 2;
@@ -536,7 +793,7 @@ function prepareRenderItem(
   const items = [];
 
   if (node.tagName === 'TABLE') {
-    const tableData = extractTableData(node, config.scale);
+    const tableData = extractTableData(node, config.scale, intrinsicScale);
 
     // Calculate total table width to ensure X position is correct
     // (Though x calculation above usually handles it, tables can be finicky)
@@ -555,256 +812,38 @@ function prepareRenderItem(
   }
 
   if ((node.tagName === 'UL' || node.tagName === 'OL') && !isComplexHierarchy(node)) {
-    const listItems = [];
-    const liChildren = Array.from(node.children).filter((c) => c.tagName === 'LI');
-
-    liChildren.forEach((child, index) => {
-      const liStyle = window.getComputedStyle(child);
-      const liRect = child.getBoundingClientRect();
-      const parentRect = node.getBoundingClientRect(); // node is UL/OL
-
-      // 1. Determine Bullet Config
-      let bullet = { type: 'bullet' };
-      const listStyleType = liStyle.listStyleType || 'disc';
-
-      if (node.tagName === 'OL' || listStyleType === 'decimal') {
-        bullet = { type: 'number' };
-      } else if (listStyleType === 'none') {
-        bullet = false;
-      } else {
-        let code = '2022'; // disc
-        if (listStyleType === 'circle') code = '25CB';
-        if (listStyleType === 'square') code = '25A0';
-
-        // --- CHANGE: Color & Size Logic (Option > ::marker > CSS color) ---
-        let finalHex = '000000';
-        let markerFontSize = null;
-
-        // A. Check Global Option override
-        if (globalOptions?.listConfig?.color) {
-          finalHex = parseColor(globalOptions.listConfig.color).hex || '000000';
-        }
-        // B. Check ::marker pseudo element (supported in modern browsers)
-        else {
-          const markerStyle = window.getComputedStyle(child, '::marker');
-          const markerColor = parseColor(markerStyle.color);
-          if (markerColor.hex) {
-            finalHex = markerColor.hex;
-          } else {
-            // C. Fallback to LI text color
-            const colorObj = parseColor(liStyle.color);
-            if (colorObj.hex) finalHex = colorObj.hex;
-          }
-
-          // Check ::marker font-size
-          const markerFs = parseFloat(markerStyle.fontSize);
-          if (!isNaN(markerFs) && markerFs > 0) {
-            // Convert px->pt for PPTX
-            markerFontSize = markerFs * 0.75 * config.scale;
-          }
-        }
-
-        bullet = { code, color: finalHex };
-        if (markerFontSize) {
-          bullet.fontSize = markerFontSize;
-        }
-      }
-
-      // 2. Calculate Dynamic Indent (Respects padding-left)
-      // Visual Indent = Distance from UL left edge to LI Content left edge.
-      // PptxGenJS 'indent' = Space between bullet and text?
-      // Actually PptxGenJS 'indent' allows setting the hanging indent.
-      // We calculate the TOTAL visual offset from the parent container.
-      // 1 px = 0.75 pt (approx, standard DTP).
-      // We must scale it by config.scale.
-      const visualIndentPx = liRect.left - parentRect.left;
-      /*
-         Standard indent in PPT is ~27pt.
-         If visualIndentPx is small (e.g. 10px padding), we want small indent.
-         If visualIndentPx is large (40px padding), we want large indent.
-         We treat 'indent' as the value to pass to PptxGenJS.
-      */
-      const computedIndentPt = visualIndentPx * 0.75 * config.scale;
-
-      if (bullet && computedIndentPt > 0) {
-        bullet.indent = computedIndentPt;
-        // Also support custom margin between bullet and text if provided in listConfig?
-        // For now, computedIndentPt covers the visual placement.
-      }
-
-      // 3. Extract Text Parts
-      const parts = collectListParts(child, liStyle, config.scale);
-
-      if (parts.length > 0) {
-        parts.forEach((p) => {
-          if (!p.options) p.options = {};
-        });
-
-        // A. Apply Bullet
-        // Workaround: pptxgenjs bullets inherit the style of the text run they are attached to.
-        // To support ::marker styles (color, size) that differ from the text, we create
-        // a "dummy" text run at the start of the list item that carries the bullet configuration.
-        if (bullet) {
-          const firstPartInfo = parts[0].options;
-
-          // Create a dummy run. We use a Zero Width Space to ensure it's rendered but invisible.
-          // This "run" will hold the bullet and its specific color/size.
-          const bulletRun = {
-            text: '\u200B',
-            options: {
-              ...firstPartInfo, // Inherit base props (fontFace, etc.)
-              color: bullet.color || firstPartInfo.color,
-              fontSize: bullet.fontSize || firstPartInfo.fontSize,
-              bullet: bullet,
-            },
-          };
-
-          // Don't duplicate transparent or empty color from firstPart if bullet has one
-          if (bullet.color) bulletRun.options.color = bullet.color;
-          if (bullet.fontSize) bulletRun.options.fontSize = bullet.fontSize;
-
-          // Prepend
-          parts.unshift(bulletRun);
-        }
-
-        // B. Apply Spacing
-        let ptBefore = 0;
-        let ptAfter = 0;
-
-        // A. Check Global Options (Expected in Points)
-        if (globalOptions.listConfig?.spacing) {
-          if (typeof globalOptions.listConfig.spacing.before === 'number') {
-            ptBefore = globalOptions.listConfig.spacing.before;
-          }
-          if (typeof globalOptions.listConfig.spacing.after === 'number') {
-            ptAfter = globalOptions.listConfig.spacing.after;
-          }
-        }
-        // B. Fallback to CSS Margins (Convert px -> pt)
-        else {
-          const mt = parseFloat(liStyle.marginTop) || 0;
-          const mb = parseFloat(liStyle.marginBottom) || 0;
-          if (mt > 0) ptBefore = mt * 0.75 * config.scale;
-          if (mb > 0) ptAfter = mb * 0.75 * config.scale;
-        }
-
-        if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
-        if (ptAfter > 0) parts[0].options.paraSpaceAfter = ptAfter;
-
-        if (index < liChildren.length - 1) {
-          parts[parts.length - 1].options.breakLine = true;
-        }
-
-        listItems.push(...parts);
-      }
-    });
-
-    if (listItems.length > 0) {
-      // Add background if exists
-      const bgColorObj = parseColor(style.backgroundColor);
-      if (bgColorObj.hex && bgColorObj.opacity > 0) {
-        items.push({
-          type: 'shape',
-          zIndex,
-          domOrder,
-          shapeType: 'rect',
-          options: { x, y, w, h, fill: { color: bgColorObj.hex } },
-        });
-      }
-
-      items.push({
-        type: 'text',
-        zIndex: zIndex + 1,
-        domOrder,
-        textParts: listItems,
-        options: {
-          x,
-          y,
-          w,
-          h,
-          align: 'left',
-          valign: 'top',
-          margin: 0,
-          autoFit: false,
-          wrap: true,
-        },
-      });
-
-      return { items, stopRecursion: true };
-    }
+    const result = renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions);
+    if (result) return result;
   }
 
   if (node.tagName === 'CANVAS') {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      try {
-        // Direct data extraction from the canvas element
-        // This preserves the exact current state of the chart
-        const dataUrl = node.toDataURL('image/png');
-
-        // Basic validation
-        if (dataUrl && dataUrl.length > 10) {
-          item.options.data = dataUrl;
-        } else {
-          item.skip = true;
-        }
-      } catch (e) {
-        // Tainted canvas (CORS issues) will throw here
-        console.warn('Failed to capture canvas content:', e);
-        item.skip = true;
-      }
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => node.toDataURL('image/png')
+    );
   }
 
   // --- ASYNC JOB: SVG Tags ---
   if (node.nodeName.toUpperCase() === 'SVG') {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { data: null, x, y, w, h, rotate: rotation },
-    };
-
-    const job = async () => {
-      // Use svgToSvg for vector output (Convert to Shape in PowerPoint)
-      // Use svgToPng for rasterized output (pixel perfect)
-      const converter = globalOptions.svgAsVector ? svgToSvg : svgToPng;
-      const processed = await converter(node);
-      if (processed) item.options.data = processed;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => {
+        const converter = globalOptions.svgAsVector ? svgToSvg : svgToPng;
+        return converter(node);
+      }
+    );
   }
 
   // --- ASYNC JOB: IMG Tags ---
   if (node.tagName === 'IMG') {
-    let radii = {
-      tl: parseFloat(style.borderTopLeftRadius) || 0,
-      tr: parseFloat(style.borderTopRightRadius) || 0,
-      br: parseFloat(style.borderBottomRightRadius) || 0,
-      bl: parseFloat(style.borderBottomLeftRadius) || 0,
-    };
+    let radii = getBorderRadii(style);
 
     const hasAnyRadius = radii.tl > 0 || radii.tr > 0 || radii.br > 0 || radii.bl > 0;
     if (!hasAnyRadius) {
       const parent = node.parentElement;
       const parentStyle = window.getComputedStyle(parent);
       if (parentStyle.overflow !== 'visible') {
-        const pRadii = {
-          tl: parseFloat(parentStyle.borderTopLeftRadius) || 0,
-          tr: parseFloat(parentStyle.borderTopRightRadius) || 0,
-          br: parseFloat(parentStyle.borderBottomRightRadius) || 0,
-          bl: parseFloat(parentStyle.borderBottomLeftRadius) || 0,
-        };
+        const pRadii = getBorderRadii(parentStyle);
         const pRect = parent.getBoundingClientRect();
         if (Math.abs(pRect.width - rect.width) < 5 && Math.abs(pRect.height - rect.height) < 5) {
           radii = pRadii;
@@ -815,62 +854,27 @@ function prepareRenderItem(
     const objectFit = style.objectFit || 'fill'; // default CSS behavior is fill
     const objectPosition = style.objectPosition || '50% 50%';
 
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      const processed = await getProcessedImage(
-        node.src,
-        widthPx,
-        heightPx,
-        radii,
-        objectFit,
-        objectPosition
-      );
-      if (processed) item.options.data = processed;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => getProcessedImage(node.src, widthPx, heightPx, radii, objectFit, objectPosition)
+    );
   }
 
   // --- ASYNC JOB: Icons and Other Elements ---
   if (isIconElement(node)) {
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-    const job = async () => {
-      const pngData = await elementToCanvasImage(node, widthPx, heightPx);
-      if (pngData) item.options.data = pngData;
-      else item.skip = true;
-    };
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => elementToCanvasImage(node, widthPx, heightPx)
+    );
   }
 
   // Radii logic
+  const radii = getBorderRadii(style);
   const borderRadiusValue = parseFloat(style.borderRadius) || 0;
-  const borderBottomLeftRadius = parseFloat(style.borderBottomLeftRadius) || 0;
-  const borderBottomRightRadius = parseFloat(style.borderBottomRightRadius) || 0;
-  const borderTopLeftRadius = parseFloat(style.borderTopLeftRadius) || 0;
-  const borderTopRightRadius = parseFloat(style.borderTopRightRadius) || 0;
 
   const hasPartialBorderRadius =
-    (borderBottomLeftRadius > 0 && borderBottomLeftRadius !== borderRadiusValue) ||
-    (borderBottomRightRadius > 0 && borderBottomRightRadius !== borderRadiusValue) ||
-    (borderTopLeftRadius > 0 && borderTopLeftRadius !== borderRadiusValue) ||
-    (borderTopRightRadius > 0 && borderTopRightRadius !== borderRadiusValue) ||
-    (borderRadiusValue === 0 &&
-      (borderBottomLeftRadius ||
-        borderBottomRightRadius ||
-        borderTopLeftRadius ||
-        borderTopRightRadius));
+    [radii.bl, radii.br, radii.tl, radii.tr].some((r) => r > 0 && r !== borderRadiusValue) ||
+    (borderRadiusValue === 0 && Object.values(radii).some((r) => r > 0));
 
   // --- PRIORITY SVG: Solid Fill with Partial Border Radius (Vector Cone/Tab) ---
   // Fix for "missing cone": Prioritize SVG vector generation over Raster Canvas for simple shapes with partial radii.
@@ -883,12 +887,7 @@ function prepareRenderItem(
   const hasContent = node.textContent.trim().length > 0 || node.children.length > 0;
 
   if (hasPartialBorderRadius && tempBg.hex && !isTxt && !hasContent) {
-    const shapeSvg = generateCustomShapeSVG(widthPx, heightPx, tempBg.hex, tempBg.opacity, {
-      tl: parseFloat(style.borderTopLeftRadius) || 0,
-      tr: parseFloat(style.borderTopRightRadius) || 0,
-      br: parseFloat(style.borderBottomRightRadius) || 0,
-      bl: parseFloat(style.borderBottomLeftRadius) || 0,
-    });
+    const shapeSvg = generateCustomShapeSVG(widthPx, heightPx, tempBg.hex, tempBg.opacity, radii);
 
     return {
       items: [
@@ -912,20 +911,10 @@ function prepareRenderItem(
     x += marginLeft * PX_TO_INCH * config.scale;
     y += marginTop * PX_TO_INCH * config.scale;
 
-    const item = {
-      type: 'image',
-      zIndex,
-      domOrder,
-      options: { x, y, w, h, rotate: rotation, data: null },
-    };
-
-    const job = async () => {
-      const canvasImageData = await elementToCanvasImage(node, widthPx, heightPx);
-      if (canvasImageData) item.options.data = canvasImageData;
-      else item.skip = true;
-    };
-
-    return { items: [item], job, stopRecursion: true };
+    return createAsyncImageJob(
+      { zIndex, domOrder, x, y, w, h, rotate: rotation },
+      () => elementToCanvasImage(node, widthPx, heightPx)
+    );
   }
 
   // --- SYNC: Standard CSS Extraction ---
@@ -939,13 +928,13 @@ function prepareRenderItem(
   const borderWidth = parseFloat(style.borderWidth);
   const hasBorder = borderWidth > 0 && borderColorObj.hex;
 
-  const borderInfo = getBorderInfo(style, config.scale);
+  const borderInfo = getBorderInfo(style, intrinsicScale);
   const hasUniformBorder = borderInfo.type === 'uniform';
   const hasCompositeBorder = borderInfo.type === 'composite';
 
   const shadowStr = style.boxShadow;
   const hasShadow = shadowStr && shadowStr !== 'none';
-  const softEdge = getSoftEdges(style.filter, config.scale);
+  const softEdge = getSoftEdges(style.filter, intrinsicScale);
 
   let isImageWrapper = false;
   const imgChild = Array.from(node.children).find((c) => c.tagName === 'IMG');
@@ -958,7 +947,11 @@ function prepareRenderItem(
   let textPayload = null;
   const isText = isTextContainer(node);
 
-  if (isText) {
+  // If node contains a UL/OL as a direct child, DON'T treat it as pure text container
+  // Let the UL/OL be processed separately for proper bullet rendering
+  const hasDirectList = Array.from(node.children).some((c) => c.tagName === 'UL' || c.tagName === 'OL');
+
+  if (isText && !hasDirectList) {
     const textParts = [];
     let trimNextLeading = false;
 
@@ -982,12 +975,13 @@ function prepareRenderItem(
 
       let textVal = child.nodeType === 3 ? child.nodeValue : child.textContent;
       let nodeStyle = child.nodeType === 1 ? window.getComputedStyle(child) : style;
-      textVal = textVal.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ');
+      // Normalize whitespace: replace newlines/tabs with spaces, but preserve &nbsp; (U+00A0)
+      textVal = textVal.replace(/[\n\r\t]+/g, ' ').replace(/[ \f\v]{2,}/g, ' ');
 
-      // Trimming logic
-      if (index === 0) textVal = textVal.trimStart();
+      // Trimming logic - use smart trim to preserve non-breaking spaces
+      if (index === 0) textVal = smartTrimStart(textVal);
       if (trimNextLeading) {
-        textVal = textVal.trimStart();
+        textVal = smartTrimStart(textVal);
         trimNextLeading = false;
       }
 
@@ -996,7 +990,7 @@ function prepareRenderItem(
       if (nodeStyle.textTransform === 'lowercase') textVal = textVal.toLowerCase();
 
       if (textVal.length > 0) {
-        const textOpts = getTextStyle(nodeStyle, config.scale);
+        const textOpts = getTextStyle(nodeStyle, intrinsicScale);
 
         // BUG FIX: Numbers 1 and 2 having background.
         // If this is a naked Text Node (nodeType 3), it inherits style from the parent container.
@@ -1022,7 +1016,7 @@ function prepareRenderItem(
       const pb = parseFloat(style.paddingBottom) || 0;
       if (Math.abs(pt - pb) < 2 && bgColorObj.hex) valign = 'middle';
 
-      let padding = getPadding(style, config.scale);
+      let padding = getPadding(style, intrinsicScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
 
       textPayload = { text: textParts, align, valign, inset: padding };
@@ -1069,8 +1063,6 @@ function prepareRenderItem(
     }
 
     if (textPayload) {
-      textPayload.text[0].options.fontSize =
-        Math.floor(textPayload.text[0]?.options?.fontSize) || 12;
       items.push({
         type: 'text',
         zIndex: zIndex + 1,
@@ -1087,7 +1079,7 @@ function prepareRenderItem(
           rotate: rotation,
           margin: 0,
           wrap: true,
-          autoFit: false,
+          autoFit: true,
         },
       });
     }
@@ -1098,7 +1090,7 @@ function prepareRenderItem(
         y,
         w,
         h,
-        config.scale,
+        intrinsicScale,
         zIndex,
         domOrder
       );
@@ -1121,12 +1113,7 @@ function prepareRenderItem(
         heightPx,
         bgColorObj.hex,
         bgColorObj.opacity,
-        {
-          tl: parseFloat(style.borderTopLeftRadius) || 0,
-          tr: parseFloat(style.borderTopRightRadius) || 0,
-          br: parseFloat(style.borderBottomRightRadius) || 0,
-          bl: parseFloat(style.borderBottomLeftRadius) || 0,
-        }
+        radii
       );
 
       items.push({
@@ -1148,7 +1135,7 @@ function prepareRenderItem(
         line: hasUniformBorder ? borderInfo.options : null,
       };
 
-      if (hasShadow) shapeOpts.shadow = getVisibleShadow(shadowStr, config.scale);
+      if (hasShadow) shapeOpts.shadow = getVisibleShadow(shadowStr, intrinsicScale);
 
       // 1. Calculate dimensions first
       const minDimension = Math.min(widthPx, heightPx);
@@ -1179,14 +1166,11 @@ function prepareRenderItem(
         shapeType = pptx.ShapeType.roundRect;
         let r = radiusPx / minDimension;
         if (r > 0.5) r = 0.5;
-        if (minDimension < 100) r = r * 0.25; // Small size adjustment for small shapes
 
         shapeOpts.rectRadius = r;
       }
 
       if (textPayload) {
-        textPayload.text[0].options.fontSize =
-          Math.floor(textPayload.text[0]?.options?.fontSize) || 12;
         const textOptions = {
           shape: shapeType,
           ...shapeOpts,
@@ -1196,7 +1180,7 @@ function prepareRenderItem(
           inset: textPayload.inset,
           margin: 0,
           wrap: true,
-          autoFit: false,
+          autoFit: true,
         };
         items.push({
           type: 'text',
@@ -1264,6 +1248,86 @@ function isComplexHierarchy(root) {
   return false;
 }
 
+/**
+ * Render UL/OL as native PPTX bullets (simplified)
+ */
+function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions) {
+  const listItems = [];
+  const liChildren = Array.from(node.children).filter(c => c.tagName === 'LI');
+
+  liChildren.forEach((li, idx) => {
+    const liStyle = window.getComputedStyle(li);
+    const bullet = getBulletConfig(node, li, liStyle);
+
+    if (bullet) {
+      const visualIndent = (li.getBoundingClientRect().left - node.getBoundingClientRect().left) * 0.75 * config.scale;
+      if (visualIndent > 0) bullet.indent = visualIndent;
+    }
+
+    const parts = collectListParts(li, liStyle, intrinsicScale);
+    if (parts.length === 0) return;
+
+    parts.forEach(p => { if (!p.options) p.options = {}; });
+
+    if (bullet) {
+      parts.unshift({
+        text: '\u200B',
+        options: { ...parts[0]?.options, bullet, color: bullet.color || parts[0]?.options?.color }
+      });
+    }
+
+    const mt = parseFloat(liStyle.marginTop) || 0;
+    const mb = parseFloat(liStyle.marginBottom) || 0;
+    if (mt > 0) parts[0].options.paraSpaceBefore = mt * 0.75 * intrinsicScale;
+    if (mb > 0) parts[0].options.paraSpaceAfter = mb * 0.75 * intrinsicScale;
+    if (idx < liChildren.length - 1) parts[parts.length - 1].options.breakLine = true;
+
+    listItems.push(...parts);
+  });
+
+  if (listItems.length === 0) return null;
+
+  const items = [];
+  const bgColorObj = parseColor(style.backgroundColor);
+  if (bgColorObj.hex && bgColorObj.opacity > 0) {
+    items.push({ type: 'shape', zIndex, domOrder, shapeType: 'rect', options: { x, y, w, h, fill: { color: bgColorObj.hex } } });
+  }
+
+  items.push({
+    type: 'text',
+    zIndex: zIndex + 1,
+    domOrder,
+    textParts: listItems,
+    options: { x, y, w: w + 0.05, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
+  });
+
+  return { items, stopRecursion: true };
+}
+
+/** Get bullet config for a list item */
+function getBulletConfig(node, li, liStyle) {
+  let listStyleType = liStyle.listStyleType || 'disc';
+
+  // Check for custom icons from ::before
+  if (listStyleType === 'none') {
+    const beforeStyle = window.getComputedStyle(li, '::before');
+    const content = beforeStyle.content?.replace(/^['"]|['"]$/g, '').trim();
+
+    if (content && !/^[\d.\s]*$/.test(content)) {
+      const color = parseColor(beforeStyle.color).hex || '000000';
+      return { type: 'bullet', char: content, color: color.startsWith('#') ? color : `#${color}` };
+    }
+
+    listStyleType = node.tagName === 'OL' ? 'decimal' : 'disc';
+  }
+
+  if (node.tagName === 'OL' || listStyleType === 'decimal') return { type: 'number' };
+  if (listStyleType === 'none') return null;
+
+  const charMap = { disc: '2022', circle: '25CB', square: '25A0' };
+  return { type: 'bullet', char: charMap[listStyleType] || charMap.disc, color: '#000000' };
+}
+
 function collectListParts(node, parentStyle, scale) {
   const parts = [];
 
@@ -1277,7 +1341,7 @@ function collectListParts(node, parentStyle, scale) {
       if (cleanContent.trim()) {
         parts.push({
           text: cleanContent + ' ', // Add space after icon
-          options: getTextStyle(window.getComputedStyle(node), scale),
+          options: getTextStyle(beforeStyle, scale),  // Use ::before style for custom icons (color, etc)
         });
       }
     }
