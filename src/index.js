@@ -35,18 +35,18 @@ const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
 
 /**
- * Map Reveal.js transitions to PPTX transition types
+ * Map Reveal.js transitions to PPTX transition inner XML
+ * Allows for easy addition of new transition types.
  */
 const TRANSITION_MAP = {
-  'none': null,
-  'fade': 'fade',
-  'slide': 'push',
-  'convex': 'zoom',
-  'concave': 'zoom',
-  'zoom': 'zoom',
-  'push': 'push',
-  'wipe': 'wipe',
-  'reveal': 'reveal',
+  'fade': '<p:fade thruBlk="false"/>',
+  'slide': '<p:push dir="l"/>',
+  'push': '<p:push dir="l"/>',
+  'convex': '<p:zoom dir="in"/>',
+  'concave': '<p:zoom dir="in"/>',
+  'zoom': '<p:zoom dir="in"/>',
+  'wipe': '<p:wipe dir="l"/>',
+  'reveal': '<p:reveal dir="l"/>',
 };
 
 /**
@@ -97,24 +97,13 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
 
   const zip = await JSZip.loadAsync(pptxBlob);
 
-  const transitionXmlMap = {
-    'fade': '<p:transition spd="med" dur="500"><p:fade thruBlk="false"/></p:transition>',
-    'push': '<p:transition spd="med" dur="500"><p:push dir="l"/></p:transition>',
-    'zoom': '<p:transition spd="med" dur="500"><p:zoom dir="in"/></p:transition>',
-    'wipe': '<p:transition spd="med" dur="500"><p:wipe dir="l"/></p:transition>',
-    'reveal': '<p:transition spd="med" dur="500"><p:reveal dir="l"/></p:transition>',
-  };
-
   // Process each slide
   for (let i = 0; i < slideTransitions.length; i++) {
-    const transition = slideTransitions[i];
-    if (!transition) continue;
+    const transitionKey = slideTransitions[i]; // e.g. 'fade', 'slide'
+    const innerXml = TRANSITION_MAP[transitionKey];
+    if (!innerXml) continue;
 
-    const slideFile = `ppt/slides/slide${i + 1}.xml`;
-    const file = zip.file(slideFile);
-
-    let xmlStr = await file.async('string');
-    const transitionXml = transitionXmlMap[transition];
+    const transitionXml = `<p:transition spd="med" dur="500">${innerXml}</p:transition>`;
     // Remove existing transitions
     xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
 
