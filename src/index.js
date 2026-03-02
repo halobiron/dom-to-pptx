@@ -70,18 +70,8 @@ function hasVisibleContent(element) {
  * @returns {string|null} - PPTX transition type
  */
 function getSlideTransition(element, globalTransition) {
-  // Check for data-transition attribute on the element
-  let transition = element.getAttribute('data-transition');
-
-  // If no data-transition, use global transition
-  if (!transition && globalTransition) {
-    transition = globalTransition;
-  }
-
-  if (!transition) return null;
-
-  // Map to PPTX transition
-  return TRANSITION_MAP[transition.toLowerCase()] || null;
+  const transition = element.getAttribute('data-transition') || globalTransition;
+  return transition ? TRANSITION_MAP[transition.toLowerCase()] || null : null;
 }
 
 /**
@@ -133,15 +123,11 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
-  const resolvePptxConstructor = (pkg) => {
-    if (!pkg) return null;
-    if (typeof pkg === 'function') return pkg;
-    if (pkg && typeof pkg.default === 'function') return pkg.default;
-    if (pkg && typeof pkg.PptxGenJS === 'function') return pkg.PptxGenJS;
-    if (pkg && pkg.PptxGenJS && typeof pkg.PptxGenJS.default === 'function')
-      return pkg.PptxGenJS.default;
-    return null;
-  };
+  const resolvePptxConstructor = (pkg) =>
+    typeof pkg === 'function' ? pkg :
+      typeof pkg?.default === 'function' ? pkg.default :
+        typeof pkg?.PptxGenJS === 'function' ? pkg.PptxGenJS :
+          typeof pkg?.PptxGenJS?.default === 'function' ? pkg.PptxGenJS.default : null;
 
   const PptxConstructor = resolvePptxConstructor(PptxGenJS);
   if (!PptxConstructor) throw new Error('PptxGenJS constructor not found.');
@@ -558,19 +544,15 @@ async function elementToCanvasImage(node, widthPx, heightPx) {
           // (Applies to <i>, <span>, or standard icon classes)
           const tag = clonedNode.tagName;
           if (tag === 'I' || tag === 'SPAN' || clonedNode.className.includes('fa-')) {
-            // Flex center helps align the glyph exactly in the middle of the box
-            // preventing top/bottom cropping due to line-height mismatches.
-            clonedNode.style.display = 'inline-flex';
-            clonedNode.style.justifyContent = 'center';
-            clonedNode.style.alignItems = 'center';
-            clonedNode.style.setProperty('font-family', 'FontAwesome', 'important'); // Ensure root icon gets it too
-
-            // Remove margins that might offset the capture
-            clonedNode.style.margin = '0';
-
-            // Ensure the font fits
-            clonedNode.style.lineHeight = '1';
-            clonedNode.style.verticalAlign = 'middle';
+            Object.assign(clonedNode.style, {
+              display: 'inline-flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '0',
+              lineHeight: '1',
+              verticalAlign: 'middle'
+            });
+            clonedNode.style.setProperty('font-family', 'FontAwesome', 'important');
           }
         }
       },
@@ -598,10 +580,7 @@ async function elementToCanvasImage(node, widthPx, heightPx) {
         ctx.drawImage(canvas, sX, sY, sW, sH, 0, 0, width, height);
 
         // --- Border Radius Clipping (Existing Logic) ---
-        let tl = parseFloat(style.borderTopLeftRadius) || 0;
-        let tr = parseFloat(style.borderTopRightRadius) || 0;
-        let br = parseFloat(style.borderBottomRightRadius) || 0;
-        let bl = parseFloat(style.borderBottomLeftRadius) || 0;
+        let { tl, tr, br, bl } = getBorderRadii(style);
 
         const f = Math.min(
           width / (tl + tr) || Infinity,
@@ -894,11 +873,8 @@ function prepareRenderItem(
   const borderRadiusValue = parseFloat(style.borderRadius) || 0;
 
   const hasPartialBorderRadius =
-    (radii.bl > 0 && radii.bl !== borderRadiusValue) ||
-    (radii.br > 0 && radii.br !== borderRadiusValue) ||
-    (radii.tl > 0 && radii.tl !== borderRadiusValue) ||
-    (radii.tr > 0 && radii.tr !== borderRadiusValue) ||
-    (borderRadiusValue === 0 && (radii.bl || radii.br || radii.tl || radii.tr));
+    [radii.bl, radii.br, radii.tl, radii.tr].some((r) => r > 0 && r !== borderRadiusValue) ||
+    (borderRadiusValue === 0 && Object.values(radii).some((r) => r > 0));
 
   // --- PRIORITY SVG: Solid Fill with Partial Border Radius (Vector Cone/Tab) ---
   // Fix for "missing cone": Prioritize SVG vector generation over Raster Canvas for simple shapes with partial radii.
