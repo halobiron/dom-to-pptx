@@ -445,7 +445,7 @@ export function getSoftEdges(filterStr, scale) {
   return null;
 }
 
-export function getTextStyle(style, scale, fontScaleFactor = 1) {
+export function getTextStyle(style, scale) {
   let colorObj = parseColor(style.color);
 
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
@@ -486,9 +486,8 @@ export function getTextStyle(style, scale, fontScaleFactor = 1) {
   if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
-  // Calculate font size with smart scaling
-  const baseFontSize = fontSizePx * scale * 0.72;
-  const fontSize = Math.round(baseFontSize * fontScaleFactor);
+  // Calculate font size using standard PX-to-PT conversion (0.75) and apply scaling
+  const fontSize = Math.round(fontSizePx * scale * 0.72);
 
   return {
     color: colorObj.hex || '000000',
@@ -568,7 +567,7 @@ export function isTextContainer(node) {
       if (hasBorderRadius || padding > 5) {
         return false;
       }
-      
+
       // Relaxed check: Allow inline elements with background/border to be treated as text.
       // They will be rendered as highlighted text runs (no border support in text runs though).
       // This preserves text flow for "badges".
