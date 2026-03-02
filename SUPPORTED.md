@@ -7,8 +7,9 @@ Note: The library measures computed layout from the browser (getBoundingClientRe
 ## Supported HTML elements
 
 - div, span, p, h1-h6
-- img, svg
+- img, svg, canvas
 - ul, ol, li
+- table, tr, th, td
 - a
 - button
 - section, article, header, footer
@@ -18,8 +19,7 @@ Note: The library measures computed layout from the browser (getBoundingClientRe
 ## Supported CSS properties (rendered visually)
 
 - background-color, background-image (linear-gradient)
-- background-position, background-size (basic handling in gradients)
-- color, opacity
+- color, opacity (including oklch, lab, display-p3 via canvas normalization)
 - border, border-_-color, border-_-width, border-radius (per-corner)
 - box-shadow (outer shadows mapped to PPTX outer shadows)
 - filter: blur() (soft-edge rendering via SVG)
@@ -28,6 +28,8 @@ Note: The library measures computed layout from the browser (getBoundingClientRe
 - display, position, width, height, padding, margin
 - text-align, vertical-align, white-space, text-transform
 - font-family, font-size, font-weight, font-style, line-height
+- ::marker (pseudo-element styles for list markers)
+- Animations (Reveal.js fragments): fade-in, slide-up/down/left/right, zoom, wipe, peak
 
 ## Common utility/Tailwind-like classes (recognized by visual result)
 
@@ -43,7 +45,7 @@ These classes are examples; dom-to-pptx reads computed styles, so any combinatio
 
 ## Limitations
 
-- Complex CSS animations/transitions are not exported — only the current computed visual state is captured.
+- Complex CSS keyframe animations are not exported — however, **Reveal.js fragments** are fully supported and mapped to native PowerPoint animations.
 - Some advanced CSS features (CSS variables used as colors, filters beyond blur) may not map 1:1.
 - For images to be processed via canvas (rounded images), the source must be CORS-accessible (`Access-Control-Allow-Origin` header) or the image will be skipped or rendered as-is.
 
