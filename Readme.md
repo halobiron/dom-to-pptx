@@ -42,7 +42,7 @@ Most HTML-to-PPTX libraries fail when faced with modern web design. They break o
 ## Installation
 
 ```bash
-npm install dom-to-pptx
+npm install @halobiron/dom-to-pptx
 ```
 
 ## Usage
@@ -54,7 +54,7 @@ This library is intended for use in the browser (React, Vue, Svelte, Vanilla JS,
 By default, `dom-to-pptx` attempts to automatically find and embed your web fonts.
 
 ```javascript
-import { exportToPptx } from 'dom-to-pptx';
+import { exportToPptx } from '@halobiron/dom-to-pptx';
 
 document.getElementById('export-btn').addEventListener('click', async () => {
   // Pass the CSS selector of the container
@@ -69,7 +69,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
 If you are using external fonts (like Google Fonts) that are hosted on a server without CORS headers, automatic detection might fail. In that case, you can explicitly pass the font URLs:
 
 ```javascript
-import { exportToPptx } from 'dom-to-pptx';
+import { exportToPptx } from '@halobiron/dom-to-pptx';
 
 await exportToPptx('#slide-container', {
   fileName: 'report.pptx',
@@ -88,7 +88,7 @@ await exportToPptx('#slide-container', {
 To export multiple HTML elements as separate slides, pass an array of elements or selectors:
 
 ```javascript
-import { exportToPptx } from 'dom-to-pptx';
+import { exportToPptx } from '@halobiron/dom-to-pptx';
 
 document.getElementById('export-btn').addEventListener('click', async () => {
   const slideElements = document.querySelectorAll('.slide');
@@ -103,7 +103,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
 If your HTML contains SVG elements (like charts), you can keep them as vectors for editing in PowerPoint:
 
 ```javascript
-import { exportToPptx } from 'dom-to-pptx';
+import { exportToPptx } from '@halobiron/dom-to-pptx';
 
 await exportToPptx('#slide-with-charts', {
   fileName: 'editable-charts.pptx',
@@ -118,7 +118,7 @@ In PowerPoint, right-click the SVG image and select **"Convert to Shape"** (or *
 You can use `dom-to-pptx` directly via CDN. The bundle includes all dependencies.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@halobiron/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
 
 <script>
   document.getElementById('export-btn').addEventListener('click', async () => {

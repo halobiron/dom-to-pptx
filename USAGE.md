@@ -7,13 +7,13 @@ This document summarizes the best practices and considerations for exporting HTM
 ### Installation
 
 ```bash
-npm install dom-to-pptx
+npm install @halobiron/dom-to-pptx
 ```
 
 ### Basic Usage
 
 ```javascript
-import { exportToPptx } from 'dom-to-pptx';
+import { exportToPptx } from '@halobiron/dom-to-pptx';
 
 // Single Slide
 await exportToPptx('#slide-container', {
@@ -30,7 +30,7 @@ await exportToPptx(Array.from(slides), {
 ### Browser Direct Usage (CDN)
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@halobiron/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
 <script>
   await domToPptx.exportToPptx('#slide', { fileName: 'slide.pptx' });
 </script>
