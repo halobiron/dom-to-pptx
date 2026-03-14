@@ -5,21 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DOM to PPTX - Demo</title>
 
-    <!-- Tailwind CSS -->
+    <!-- UI/UX Frameworks -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- CodeMirror CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
-
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Reveal.js CSS -->
+    <!-- Reveal.js & Custom Styles -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.min.css">
-
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="bg-gray-50 font-[Inter]">
@@ -110,14 +104,7 @@
                 <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
                     <div class="flex items-center gap-4">
                         <h2 class="text-sm font-semibold text-gray-700">Code Editor</h2>
-                        <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <input type="checkbox" id="autoUpdate" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
-                            Auto update
-                        </label>
                     </div>
-                    <button id="updatePreview" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors">
-                        Cập nhật Preview
-                    </button>
                 </div>
                 <div class="h-[calc(100%-45px)]">
                     <textarea id="htmlEditor"></textarea>

@@ -36,29 +36,19 @@ function initEditor() {
     // Auto-update on change
     let updateTimeout;
     codeEditor.on('change', () => {
-        if (!document.getElementById('autoUpdate').checked) return;
         clearTimeout(updateTimeout);
         updateTimeout = setTimeout(updatePreview, 500);
     });
-
-    // Manual update button
-    document.getElementById('updatePreview').addEventListener('click', updatePreview);
 }
 
 // Load templates into sidebar
 function loadTemplates() {
-    const templatesList = document.getElementById('templatesList');
-    templatesList.innerHTML = '';
-
-    templates.forEach(template => {
-        const btn = document.createElement('button');
-        btn.className = 'w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium';
-        btn.dataset.templateId = template.id;
-        btn.innerHTML = template.name;
-
-        btn.addEventListener('click', () => loadTemplate(template.id));
-        templatesList.appendChild(btn);
-    });
+    const list = document.getElementById('templatesList');
+    list.innerHTML = templates.map(t => `
+        <button class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium" 
+                onclick="loadTemplate('${t.id}')" data-template-id="${t.id}">
+            ${t.name}
+        </button>`).join('');
 }
 
 // Load a template
@@ -71,17 +61,15 @@ function loadTemplate(templateId) {
 
     // Update active state
     document.querySelectorAll('#templatesList button').forEach(btn => {
-        btn.classList.remove('bg-blue-50', 'text-blue-600', 'font-semibold');
-        if (btn.dataset.templateId === templateId) {
-            btn.classList.add('bg-blue-50', 'text-blue-600', 'font-semibold');
-        }
+        const isActive = btn.dataset.templateId === templateId;
+        btn.classList.toggle('bg-blue-50', isActive);
+        btn.classList.toggle('text-blue-600', isActive);
+        btn.classList.toggle('font-semibold', isActive);
     });
 
     // Set editor content
     codeEditor.setValue(template.html);
     codeEditor.clearHistory();
-
-    // Update preview
     updatePreview();
 }
 
@@ -91,73 +79,55 @@ function updatePreview() {
     const previewContent = document.getElementById('previewContent');
     previewContent.innerHTML = html;
 
-    // Execute scripts in the preview content to initialize components like Reveal.js
-    const scripts = previewContent.querySelectorAll('script');
-    scripts.forEach(script => {
+    // Execute scripts to initialize components like Reveal.js
+    previewContent.querySelectorAll('script').forEach(script => {
         const newScript = document.createElement('script');
-        if (script.src) {
-            newScript.src = script.src;
-        } else {
-            newScript.textContent = script.textContent;
-        }
+        if (script.src) newScript.src = script.src;
+        else newScript.textContent = script.textContent;
         document.body.appendChild(newScript);
-        // Remove it immediately after execution to keep DOM clean
         setTimeout(() => document.body.removeChild(newScript), 100);
     });
 
-    // Find all slides
+    // Find all slides and handle Reveal.js
     slides = Array.from(previewContent.querySelectorAll('.slide'));
-
-    // Initialize Reveal.js if present
     const revealEl = previewContent.querySelector('.reveal');
+    
     if (typeof Reveal !== 'undefined' && revealEl) {
-        try {
-            // Use instance API since we are inside a container
-            if (window.currentDeck) {
-                window.currentDeck.destroy();
-            }
-            
-            // Set fixed dimensions for the container
-            revealEl.style.width = '1280px';
-            revealEl.style.height = '720px';
-            previewContent.style.width = '1280px';
-            previewContent.style.height = '720px';
-            
-            window.currentDeck = new Reveal(revealEl, {
-                hash: false,
-                embedded: true,
-                keyboard: false, 
-                transition: document.getElementById('transition').value || 'slide',
-                width: 1280,
-                height: 720,
-                margin: 0,
-                // Fix min and max scale to 1 so Reveal doesn't try to scale. 
-                // We will handle scaling via our own CSS transform in scalePreview()
-                minScale: 1, 
-                maxScale: 1,
-                disableLayout: false
-            });
-            window.currentDeck.initialize().then(() => {
-                window.currentDeck.on('slidechanged', event => {
-                    currentSlideIndex = event.indexh;
-                    updateDimensions(currentSlideIndex);
-                });
-            });
-        } catch (e) {
-            console.warn('Reveal.js initialization error:', e);
-        }
+        initReveal(revealEl, previewContent);
     }
 
-    // Update slide count
+    // Update UI
     const slideCount = document.getElementById('slideCount');
-    if (slides.length > 0) {
-        slideCount.textContent = `${slides.length} slides`;
-        showSlide(0);
-    } else {
-        slideCount.textContent = '1 slide';
-    }
-
+    slideCount.textContent = slides.length > 0 ? `${slides.length} slides` : '1 slide';
+    if (slides.length > 0) showSlide(0);
+    
     scalePreview();
+}
+
+function initReveal(revealEl, previewContent) {
+    try {
+        if (window.currentDeck) window.currentDeck.destroy();
+        
+        // Fixed dimensions for container
+        revealEl.style.width = previewContent.style.width = '1280px';
+        revealEl.style.height = previewContent.style.height = '720px';
+        
+        window.currentDeck = new Reveal(revealEl, {
+            hash: false, embedded: true, keyboard: false, 
+            transition: document.getElementById('transition').value || 'slide',
+            width: 1280, height: 720, margin: 0,
+            minScale: 1, maxScale: 1, disableLayout: false
+        });
+        
+        window.currentDeck.initialize().then(() => {
+            window.currentDeck.on('slidechanged', e => {
+                currentSlideIndex = e.indexh;
+                updateDimensions(currentSlideIndex);
+            });
+        });
+    } catch (e) {
+        console.warn('Reveal.js error:', e);
+    }
 }
 
 function updateDimensions(index) {
@@ -178,80 +148,30 @@ function updateDimensions(index) {
 // Show specific slide
 function showSlide(index) {
     if (slides.length === 0) return;
+    currentSlideIndex = Math.max(0, Math.min(index, slides.length - 1));
 
-    // Ensure index is within bounds
-    if (index < 0) index = 0;
-    if (index >= slides.length) index = slides.length - 1;
-
-    currentSlideIndex = index;
-
-    // Handle Reveal.js navigation if present
-    const previewContent = document.getElementById('previewContent');
-    if (window.currentDeck && previewContent.querySelector('.reveal')) {
-        try {
-            window.currentDeck.slide(index, 0);
-        } catch (e) {
-            console.warn('Reveal.js slide navigation error:', e);
-            // Fallback to manual display
-            slides.forEach((slide, i) => {
-                slide.style.display = i === index ? 'block' : 'none';
-            });
-        }
+    if (window.currentDeck && document.querySelector('.reveal')) {
+        window.currentDeck.slide(currentSlideIndex, 0);
     } else {
-        // Fallback for non-Reveal templates
-        slides.forEach((slide, i) => {
-            slide.style.display = i === index ? 'block' : 'none';
-        });
+        slides.forEach((s, i) => s.style.display = i === currentSlideIndex ? 'block' : 'none');
     }
-
-    // Update dimensions
-    updateDimensions(index);
+    updateDimensions(currentSlideIndex);
 }
 
 // Setup slide navigation
 function setupSlideNavigation() {
-    const prevBtn = document.getElementById('prevSlide');
-    const nextBtn = document.getElementById('nextSlide');
+    const nav = (dir) => {
+        if (window.currentDeck) window.currentDeck[dir === 1 ? 'right' : 'left']();
+        else showSlide(currentSlideIndex + dir);
+    };
 
-    if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
-            if (window.currentDeck) {
-                window.currentDeck.left();
-            } else if (currentSlideIndex > 0) {
-                showSlide(currentSlideIndex - 1);
-            }
-        });
-    }
+    document.getElementById('prevSlide')?.addEventListener('click', () => nav(-1));
+    document.getElementById('nextSlide')?.addEventListener('click', () => nav(1));
 
-    if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
-            if (window.currentDeck) {
-                window.currentDeck.right();
-            } else if (currentSlideIndex < slides.length - 1) {
-                showSlide(currentSlideIndex + 1);
-            }
-        });
-    }
-
-    // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-        // Prevent default keyboard if in editor
         if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-        
-        if (window.currentDeck) {
-            // Let Reveal handle its own keyboard if we re-enable it, 
-            // but we disabled it in config, so we trigger manually.
-            if (e.key === 'ArrowLeft') window.currentDeck.left();
-            else if (e.key === 'ArrowRight') window.currentDeck.right();
-            else if (e.key === 'ArrowUp') window.currentDeck.up();
-            else if (e.key === 'ArrowDown') window.currentDeck.down();
-        } else {
-            if (e.key === 'ArrowLeft' && currentSlideIndex > 0) {
-                showSlide(currentSlideIndex - 1);
-            } else if (e.key === 'ArrowRight' && currentSlideIndex < slides.length - 1) {
-                showSlide(currentSlideIndex + 1);
-            }
-        }
+        const keys = {ArrowLeft: -1, ArrowRight: 1};
+        if (keys[e.key]) nav(keys[e.key]);
     });
 }
 
