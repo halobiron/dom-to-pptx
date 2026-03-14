@@ -45,6 +45,30 @@ Most HTML-to-PPTX libraries fail when faced with modern web design. They break o
 npm install @halobiron/dom-to-pptx
 ```
 
+## 🎮 Try the Interactive Demo
+
+Want to see it in action without writing any code? Check out our **interactive web demo**:
+
+```bash
+# Navigate to the demo directory
+cd demo
+
+# Start a local server (Python example)
+python -m http.server 8000
+
+# Open in browser
+# http://localhost:8000
+```
+
+Or simply open `demo/index.html` directly in your browser.
+
+**Demo Features:**
+- 🎨 **5 Pre-built Templates**: Basic slides, dashboards, multi-slide presentations, reports, and creative designs
+- 🔧 **Live Code Editor**: Edit HTML/CSS in real-time with CodeMirror
+- ⚙️ **Configurable Options**: Customize export settings (fonts, transitions, margins, etc.)
+- 👀 **Live Preview**: See changes instantly as you edit
+- 📥 **One-Click Export**: Download PPTX files instantly
+
 ## Usage
 
 This library is intended for use in the browser (React, Vue, Svelte, Vanilla JS, etc.).
