@@ -388,186 +388,466 @@ const templates = [
     },
     {
         id: 'business-report',
-        name: '📊 Business Report (5 slides)',
-        description: 'Professional business presentation with charts and tables',
-        html: `<div class="slides-container" style="width: 1280px;">
-    <!-- Slide 1: Title -->
-    <div class="slide" data-transition="fade" style="width: 1280px; height: 720px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center;">
-        <div style="text-align: center; color: white;">
-            <h1 style="font-size: 64px; font-weight: 800; margin-bottom: 20px;">Q4 Business Report</h1>
-            <p style="font-size: 28px; opacity: 0.9;">Fiscal Year 2024</p>
-            <div class="fragment fade-up" style="margin-top: 40px; background: rgba(255,255,255,0.2); padding: 20px 40px; border-radius: 30px; backdrop-filter: blur(10px);">
-                <p style="font-size: 20px; margin: 0;">Prepared by: Finance Team</p>
-            </div>
-        </div>
-    </div>
+        name: '📊 Business Report (6 slides)',
+        description: 'Premium business presentation with glassmorphism & animations',
+        html: `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Q4 Business Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/black.min.css" id="theme">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      --glass-bg: rgba(255, 255, 255, 0.1);
+      --glass-border: rgba(255, 255, 255, 0.2);
+    }
+    body { font-family: 'Inter', sans-serif; background: #0f172a; }
+    .reveal h1, .reveal h2, .reveal h3 { font-family: 'Inter', sans-serif; font-weight: 800; }
+    .gradient-text {
+      background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .metric-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+    .stat-highlight {
+      font-size: 64px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #10b981, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .progress-bar {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      border-radius: 10px;
+    }
+    .reveal ul { list-style: none; padding: 0; }
+    .reveal ul li {
+      padding: 15px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.9em;
+    }
+    .reveal ul li::before {
+      content: "✓";
+      color: #10b981;
+      font-weight: bold;
+      margin-right: 15px;
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal" style="width: 1280px; height: 720px;">
+    <div class="slides" style="width: 1280px; height: 720px;">
 
-    <!-- Slide 2: Executive Summary -->
-    <div class="slide" data-transition="slide" style="width: 1280px; height: 720px; background: white; font-family: Arial, sans-serif; padding: 60px;">
-        <h2 style="font-size: 48px; font-weight: 700; color: #1e293b; margin-bottom: 40px;">Executive Summary</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-            <div class="fragment fade-right" style="background: #f8fafc; padding: 40px; border-radius: 20px; border-left: 6px solid #3b82f6;">
-                <h3 style="font-size: 24px; font-weight: 600; color: #1e293b; margin-bottom: 20px;">Key Highlights</h3>
-                <ul style="list-style: none; padding: 0; font-size: 18px; line-height: 2;">
-                    <li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">✓ Revenue increased by <strong>24.5%</strong></li>
-                    <li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">✓ New customer acquisition: <strong>+15%</strong></li>
-                    <li style="padding: 12px 0;">✓ Market share expanded to <strong>18.3%</strong></li>
-                </ul>
+      <!-- SLIDE 1: TITLE -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; align-items: center; justify-content: center;"
+        data-background-gradient="linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)">
+        <div style="text-align: center;">
+          <div class="glass-card fragment fade-up" style="margin-bottom: 30px;">
+            <p style="font-size: 20px; color: #a5b4fc; margin: 0; letter-spacing: 3px;">FY 2024</p>
+          </div>
+          <h1 class="gradient-text r-fit-text">Q4 BUSINESS<br>REPORT</h1>
+          <p style="font-size: 28px; color: #e0e7ff; margin-top: 30px; font-weight: 300;">Quarterly Performance Review</p>
+          <div class="fragment fade-up" style="margin-top: 50px;">
+            <div style="display: inline-flex; align-items: center; gap: 15px; background: rgba(255,255,255,0.1); padding: 15px 30px; border-radius: 50px; backdrop-filter: blur(10px);">
+              <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">📊</div>
+              <span style="font-size: 16px; color: #e0e7ff;">Finance Team</span>
             </div>
-            <div class="fragment fade-left" style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); padding: 40px; border-radius: 20px; color: white;">
-                <h3 style="font-size: 24px; font-weight: 600; margin-bottom: 20px;">Total Revenue</h3>
-                <p style="font-size: 56px; font-weight: 800; margin: 20px 0;">$2.4M</p>
-                <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px;">
-                    <p style="font-size: 16px; margin: 0;">↑ 24.5% vs Q3</p>
-                </div>
-            </div>
+          </div>
         </div>
-    </div>
+      </section>
 
-    <!-- Slide 3: Revenue Breakdown -->
-    <div class="slide" data-transition="convex" style="width: 1280px; height: 720px; background: white; font-family: Arial, sans-serif; padding: 60px;">
-        <h2 style="font-size: 48px; font-weight: 700; color: #1e293b; margin-bottom: 40px;">Revenue Breakdown</h2>
-        <table style="width: 100%; border-collapse: collapse; font-size: 18px;">
+      <!-- SLIDE 2: KEY METRICS -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0f172a">
+        <h2 class="gradient-text" style="margin-bottom: 50px;">Key Performance Metrics</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
+          <div class="glass-card fragment fade-up" style="text-align: center;">
+            <p style="font-size: 16px; color: #a5b4fc; margin-bottom: 15px;">Total Revenue</p>
+            <p class="stat-highlight">$2.4M</p>
+            <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 8px 16px; border-radius: 20px; display: inline-block; font-size: 14px; font-weight: 600; margin-top: 15px;">↑ 24.5%</div>
+          </div>
+          <div class="glass-card fragment fade-up" style="text-align: center;">
+            <p style="font-size: 16px; color: #a5b4fc; margin-bottom: 15px;">New Customers</p>
+            <p class="stat-highlight">+1,847</p>
+            <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 8px 16px; border-radius: 20px; display: inline-block; font-size: 14px; font-weight: 600; margin-top: 15px;">↑ 15.2%</div>
+          </div>
+          <div class="glass-card fragment fade-up" style="text-align: center;">
+            <p style="font-size: 16px; color: #a5b4fc; margin-bottom: 15px;">Market Share</p>
+            <p class="stat-highlight">18.3%</p>
+            <div style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 8px 16px; border-radius: 20px; display: inline-block; font-size: 14px; font-weight: 600; margin-top: 15px;">↑ 2.1%</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: REVENUE BREAKDOWN -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0f172a">
+        <h2 class="gradient-text" style="margin-bottom: 40px;">Revenue Breakdown</h2>
+        <div class="glass-card">
+          <table style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr style="background: #f1f5f9;">
-                    <th style="padding: 20px; text-align: left; font-weight: 600; color: #475569; border-bottom: 3px solid #cbd5e1;">Quarter</th>
-                    <th style="padding: 20px; text-align: right; font-weight: 600; color: #475569; border-bottom: 3px solid #cbd5e1;">Revenue</th>
-                    <th style="padding: 20px; text-align: right; font-weight: 600; color: #475569; border-bottom: 3px solid #cbd5e1;">Growth</th>
-                </tr>
+              <tr style="border-bottom: 2px solid rgba(255,255,255,0.1);">
+                <th style="padding: 20px; text-align: left; color: #a5b4fc; font-weight: 600;">Quarter</th>
+                <th style="padding: 20px; text-align: right; color: #a5b4fc; font-weight: 600;">Revenue</th>
+                <th style="padding: 20px; text-align: right; color: #a5b4fc; font-weight: 600;">Growth</th>
+              </tr>
             </thead>
             <tbody>
-                <tr class="fragment fade-in" style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 20px; color: #1e293b; font-weight: 500;">Q1 2024</td>
-                    <td style="padding: 20px; text-align: right; color: #1e293b;">$485,000</td>
-                    <td style="padding: 20px; text-align: right; color: #10b981; font-weight: 600;">+8.2%</td>
-                </tr>
-                <tr class="fragment fade-in" style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 20px; color: #1e293b; font-weight: 500;">Q2 2024</td>
-                    <td style="padding: 20px; text-align: right; color: #1e293b;">$612,000</td>
-                    <td style="padding: 20px; text-align: right; color: #10b981; font-weight: 600;">+26.2%</td>
-                </tr>
-                <tr class="fragment fade-in" style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 20px; color: #1e293b; font-weight: 500;">Q3 2024</td>
-                    <td style="padding: 20px; text-align: right; color: #1e293b;">$758,000</td>
-                    <td style="padding: 20px; text-align: right; color: #10b981; font-weight: 600;">+23.9%</td>
-                </tr>
-                <tr class="fragment fade-in" style="background: #eff6ff;">
-                    <td style="padding: 20px; color: #1e40af; font-weight: 600;">Total</td>
-                    <td style="padding: 20px; text-align: right; color: #1e40af; font-weight: 700;">$1,855,000</td>
-                    <td style="padding: 20px; text-align: right; color: #10b981; font-weight: 700;">+19.4%</td>
-                </tr>
+              <tr class="fragment fade-in" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 20px; color: #e0e7ff;">Q1 2024</td>
+                <td style="padding: 20px; text-align: right; color: #e0e7ff; font-weight: 600;">$485,000</td>
+                <td style="padding: 20px; text-align: right;"><span style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 6px 14px; border-radius: 15px; font-size: 14px; font-weight: 600;">+8.2%</span></td>
+              </tr>
+              <tr class="fragment fade-in" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 20px; color: #e0e7ff;">Q2 2024</td>
+                <td style="padding: 20px; text-align: right; color: #e0e7ff; font-weight: 600;">$612,000</td>
+                <td style="padding: 20px; text-align: right;"><span style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 6px 14px; border-radius: 15px; font-size: 14px; font-weight: 600;">+26.2%</span></td>
+              </tr>
+              <tr class="fragment fade-in" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 20px; color: #e0e7ff;">Q3 2024</td>
+                <td style="padding: 20px; text-align: right; color: #e0e7ff; font-weight: 600;">$758,000</td>
+                <td style="padding: 20px; text-align: right;"><span style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 6px 14px; border-radius: 15px; font-size: 14px; font-weight: 600;">+23.9%</span></td>
+              </tr>
+              <tr class="fragment fade-in" style="background: rgba(102, 126, 234, 0.1);">
+                <td style="padding: 20px; color: #a5b4fc; font-weight: 700;">Total</td>
+                <td style="padding: 20px; text-align: right; color: #a5b4fc; font-weight: 800;">$1,855,000</td>
+                <td style="padding: 20px; text-align: right;"><span style="background: rgba(16, 185, 129, 0.3); color: #10b981; padding: 6px 14px; border-radius: 15px; font-size: 14px; font-weight: 700;">+19.4%</span></td>
+              </tr>
             </tbody>
-        </table>
-    </div>
-
-    <!-- Slide 4: Charts -->
-    <div class="slide" data-transition="concave" style="width: 1280px; height: 720px; background: #f8fafc; font-family: Arial, sans-serif; padding: 60px;">
-        <h2 style="font-size: 48px; font-weight: 700; color: #1e293b; margin-bottom: 40px;">Growth Trends</h2>
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 40px;">
-            <div class="fragment fade-up" style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <h3 style="font-size: 24px; font-weight: 600; color: #1e293b; margin-bottom: 30px;">Monthly Revenue</h3>
-                <div style="display: flex; align-items: flex-end; gap: 20px; height: 300px;">
-                    <div style="flex: 1; text-align: center;"><div style="height: 120px; background: #3b82f6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">Jan</p></div>
-                    <div style="flex: 1; text-align: center;"><div style="height: 150px; background: #3b82f6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">Feb</p></div>
-                    <div style="flex: 1; text-align: center;"><div style="height: 180px; background: #3b82f6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">Mar</p></div>
-                    <div style="flex: 1; text-align: center;"><div style="height: 200px; background: #8b5cf6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">Apr</p></div>
-                    <div style="flex: 1; text-align: center;"><div style="height: 220px; background: #3b82f6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">May</p></div>
-                    <div style="flex: 1; text-align: center;"><div style="height: 250px; background: #3b82f6; border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 10px; color: #64748b;">Jun</p></div>
-                </div>
-            </div>
-            <div class="fragment fade-left" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px; border-radius: 20px; color: white;">
-                <h3 style="font-size: 20px; font-weight: 600; margin-bottom: 20px;">Top Product</h3>
-                <p style="font-size: 48px; font-weight: 800; margin: 20px 0;">Enterprise</p>
-                <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px;">
-                    <p style="font-size: 14px; margin: 0;">65% of total revenue</p>
-                </div>
-            </div>
+          </table>
         </div>
-    </div>
+      </section>
 
-    <!-- Slide 5: Conclusion -->
-    <div class="slide" data-transition="zoom" style="width: 1280px; height: 720px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center;">
-        <div style="text-align: center; color: white;">
-            <h1 class="fragment fade-up" style="font-size: 64px; font-weight: 800; margin-bottom: 20px;">Thank You!</h1>
-            <p class="fragment fade-up" style="font-size: 28px; margin-bottom: 40px; opacity: 0.9;">Questions & Discussion</p>
-            <div class="fragment fade-up" style="background: rgba(255,255,255,0.2); padding: 30px 50px; border-radius: 40px; backdrop-filter: blur(10px);">
-                <p style="font-size: 18px; margin: 0;">contact@company.com</p>
+      <!-- SLIDE 4: MONTHLY TRENDS -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0f172a">
+        <h2 class="gradient-text" style="margin-bottom: 40px;">Monthly Revenue Trends</h2>
+        <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 40px;">
+          <div class="glass-card fragment fade-up">
+            <div style="display: flex; align-items: flex-end; gap: 25px; height: 280px;">
+              <div style="flex: 1; text-align: center;"><div style="height: 120px; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">Jan</p></div>
+              <div style="flex: 1; text-align: center;"><div style="height: 150px; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">Feb</p></div>
+              <div style="flex: 1; text-align: center;"><div style="height: 180px; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">Mar</p></div>
+              <div style="flex: 1; text-align: center;"><div style="height: 200px; background: linear-gradient(180deg, #f093fb, #f5576c); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">Apr</p></div>
+              <div style="flex: 1; text-align: center;"><div style="height: 220px; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">May</p></div>
+              <div style="flex: 1; text-align: center;"><div style="height: 250px; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 8px 8px 0 0;"></div><p style="font-size: 14px; margin-top: 12px; color: #a5b4fc;">Jun</p></div>
             </div>
+          </div>
+          <div class="fragment fade-left" style="background: var(--success-gradient); border-radius: 24px; padding: 35px; color: white; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 15px;">🏆</div>
+            <h3 style="font-size: 20px; font-weight: 600; margin-bottom: 20px;">Best Month</h3>
+            <p style="font-size: 42px; font-weight: 800; margin: 20px 0;">June</p>
+            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 12px;">
+              <p style="font-size: 14px; margin: 0;">$850K Revenue</p>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <!-- SLIDE 5: KEY HIGHLIGHTS -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0f172a">
+        <h2 class="gradient-text" style="margin-bottom: 40px;">Key Highlights</h2>
+        <div class="glass-card">
+          <ul style="font-size: 0.7em;">
+            <li class="fragment fade-right">Revenue increased by <strong style="color: #10b981;">24.5%</strong> compared to Q3</li>
+            <li class="fragment fade-right">New customer acquisition grew by <strong style="color: #10b981;">+15%</strong> across all regions</li>
+            <li class="fragment fade-right">Market share expanded to <strong style="color: #10b981;">18.3%</strong> in our target segment</li>
+            <li class="fragment fade-right">Product launches exceeded targets by <strong style="color: #10b981;">32%</strong></li>
+            <li class="fragment fade-right">Customer retention rate improved to <strong style="color: #10b981;">94.2%</strong></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: CONCLUSION -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; align-items: center; justify-content: center;"
+        data-background-gradient="linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%)">
+        <div style="text-align: center;">
+          <div class="fragment fade-up">
+            <div style="font-size: 80px; margin-bottom: 20px;">🎉</div>
+          </div>
+          <h1 class="fragment fade-up" style="font-size: 72px; font-weight: 800; margin-bottom: 30px; color: white;">Thank You!</h1>
+          <p class="fragment fade-up" style="font-size: 28px; margin-bottom: 50px; opacity: 0.9; color: white;">Questions & Discussion</p>
+          <div class="fragment fade-up" style="background: rgba(255,255,255,0.2); padding: 25px 45px; border-radius: 50px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.3);">
+            <p style="font-size: 18px; margin: 0; color: white;">📧 contact@company.com</p>
+          </div>
+        </div>
+      </section>
+
     </div>
-</div>`
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.js"></script>
+  <script>
+    (function() {
+      if (typeof Reveal !== 'undefined') {
+        Reveal.initialize({
+          embedded: true, hash: false, history: false, keyboard: false, overview: false,
+          progress: false, controls: false, transition: 'convex', backgroundTransition: 'fade',
+          autoAnimateEasing: 'ease-out', autoAnimateDuration: 0.8, width: 1280, height: 720
+        });
+      }
+    })();
+  </script>
+</body>
+</html>`
     },
     {
         id: 'product-launch',
-        name: '🚀 Product Launch (4 slides)',
-        description: 'Product presentation with modern design and animations',
-        html: `<div class="slides-container" style="width: 1280px;">
-    <!-- Slide 1: Hero -->
-    <div class="slide" data-transition="fade" style="width: 1280px; height: 720px; background: #0f172a; font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -100px; left: -100px; width: 500px; height: 500px; background: radial-gradient(circle, #8b5cf6 0%, transparent 70%); opacity: 0.3; filter: blur(100px);"></div>
-        <div style="position: absolute; bottom: -100px; right: -100px; width: 500px; height: 500px; background: radial-gradient(circle, #06b6d4 0%, transparent 70%); opacity: 0.3; filter: blur(100px);"></div>
-        <div style="position: relative; z-index: 1; text-align: center; color: white;">
-            <div class="fragment fade-up" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 80px; font-weight: 800;">NEW PRODUCT</div>
-            <p class="fragment fade-up" style="font-size: 28px; margin-top: 20px; opacity: 0.8;">Revolutionizing the way you work</p>
-        </div>
-    </div>
+        name: '🚀 Product Launch (5 slides)',
+        description: 'Premium product presentation with glassmorphism & animations',
+        html: `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Product Launch</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/theme/black.min.css" id="theme">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      --secondary-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
+    }
+    body { font-family: 'Inter', sans-serif; background: #0a0a0a; }
+    .reveal h1, .reveal h2, .reveal h3 { font-family: 'Inter', sans-serif; font-weight: 800; }
+    .gradient-text {
+      background: linear-gradient(135deg, #f093fb, #f5576c, #ff9a9e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      padding: 45px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+    }
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: translateY(-5px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+    .feature-icon {
+      width: 90px;
+      height: 90px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 25px;
+      font-size: 44px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .step-circle {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 25px;
+      font-size: 56px;
+      font-weight: 900;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    .cta-button {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      color: white;
+      padding: 25px 60px;
+      border-radius: 60px;
+      font-size: 22px;
+      font-weight: 700;
+      display: inline-block;
+      box-shadow: 0 15px 40px rgba(245, 87, 108, 0.4);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      text-decoration: none;
+    }
+    .floating-particle {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal" style="width: 1280px; height: 720px;">
+    <div class="slides" style="width: 1280px; height: 720px;">
 
-    <!-- Slide 2: Features -->
-    <div class="slide" data-transition="slide" style="width: 1280px; height: 720px; background: white; font-family: Arial, sans-serif; padding: 60px;">
-        <h2 style="font-size: 48px; font-weight: 700; color: #1e293b; margin-bottom: 50px;">Powerful Features</h2>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
-            <div class="fragment fade-up" style="text-align: center; padding: 40px 20px;">
-                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 40px;">⚡</div>
-                <h3 style="font-size: 24px; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Lightning Fast</h3>
-                <p style="font-size: 16px; color: #64748b; line-height: 1.6;">Built for speed and efficiency</p>
+      <!-- SLIDE 1: HERO TITLE -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;"
+        data-background-gradient="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)">
+        <div class="floating-particle" style="top: -100px; left: -100px; background: radial-gradient(circle, #f093fb 0%, transparent 70%);"></div>
+        <div class="floating-particle" style="bottom: -100px; right: -100px; background: radial-gradient(circle, #4facfe 0%, transparent 70%);"></div>
+        <div style="position: relative; z-index: 1; text-align: center;">
+          <div class="fragment fade-up" style="margin-bottom: 30px;">
+            <div style="font-size: 72px;">🚀</div>
+          </div>
+          <h1 class="gradient-text r-fit-text fragment fade-up">INTRODUCING<br>THE FUTURE</h1>
+          <p class="fragment fade-up" style="font-size: 26px; margin-top: 30px; color: #e0e7ff; font-weight: 300;">Revolutionizing the way you work</p>
+          <div class="fragment fade-up" style="margin-top: 50px;">
+            <div class="glass-card" style="display: inline-block; padding: 20px 40px;">
+              <p style="font-size: 18px; margin: 0; color: #f093fb; font-weight: 600;">✨ Now Available Worldwide</p>
             </div>
-            <div class="fragment fade-up" style="text-align: center; padding: 40px 20px;">
-                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #8b5cf6, #ec4899); border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 40px;">🎨</div>
-                <h3 style="font-size: 24px; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Beautiful Design</h3>
-                <p style="font-size: 16px; color: #64748b; line-height: 1.6;">Stunning user interface</p>
-            </div>
-            <div class="fragment fade-up" style="text-align: center; padding: 40px 20px;">
-                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #ec4899, #f43f5e); border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 40px;">🔒</div>
-                <h3 style="font-size: 24px; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Secure by Default</h3>
-                <p style="font-size: 16px; color: #64748b; line-height: 1.6;">Enterprise-grade security</p>
-            </div>
+          </div>
         </div>
-    </div>
+      </section>
 
-    <!-- Slide 3: How It Works -->
-    <div class="slide" data-transition="convex" style="width: 1280px; height: 720px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); font-family: Arial, sans-serif; padding: 60px; color: white;">
-        <h2 style="font-size: 48px; font-weight: 700; margin-bottom: 50px;">How It Works</h2>
+      <!-- SLIDE 2: FEATURES -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0a0a0a">
+        <h2 class="gradient-text" style="margin-bottom: 50px; font-size: 56px;">Powerful Features</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 35px;">
+          <div class="glass-card fragment fade-up" data-fragment-index="1" style="text-align: center;">
+            <div class="feature-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">⚡</div>
+            <h3 style="font-size: 26px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Lightning Fast</h3>
+            <p style="font-size: 16px; color: #94a3b8; line-height: 1.6;">Built for speed and efficiency</p>
+          </div>
+          <div class="glass-card fragment fade-up" data-fragment-index="2" style="text-align: center;">
+            <div class="feature-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">🎨</div>
+            <h3 style="font-size: 26px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Beautiful Design</h3>
+            <p style="font-size: 16px; color: #94a3b8; line-height: 1.6;">Stunning user interface</p>
+          </div>
+          <div class="glass-card fragment fade-up" data-fragment-index="3" style="text-align: center;">
+            <div class="feature-icon" style="background: linear-gradient(135deg, #fa709a, #fee140);">🔒</div>
+            <h3 style="font-size: 26px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Secure by Default</h3>
+            <p style="font-size: 16px; color: #94a3b8; line-height: 1.6;">Enterprise-grade security</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: MORE FEATURES -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;" data-background-color="#0a0a0a">
+        <h2 class="gradient-text" style="margin-bottom: 50px; font-size: 56px;">Why Choose Us?</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 35px;">
+          <div class="glass-card fragment fade-right">
+            <div style="display: flex; align-items: center; gap: 25px; margin-bottom: 20px;">
+              <div style="font-size: 48px;">🎯</div>
+              <h3 style="font-size: 28px; font-weight: 700; color: #e0e7ff; margin: 0;">Smart Automation</h3>
+            </div>
+            <p style="font-size: 18px; color: #94a3b8; line-height: 1.6; margin: 0;">AI-powered workflows that learn and adapt to your needs</p>
+          </div>
+          <div class="glass-card fragment fade-left">
+            <div style="display: flex; align-items: center; gap: 25px; margin-bottom: 20px;">
+              <div style="font-size: 48px;">🔄</div>
+              <h3 style="font-size: 28px; font-weight: 700; color: #e0e7ff; margin: 0;">Real-time Sync</h3>
+            </div>
+            <p style="font-size: 18px; color: #94a3b8; line-height: 1.6; margin: 0;">Seamless collaboration across all your devices</p>
+          </div>
+          <div class="glass-card fragment fade-right">
+            <div style="display: flex; align-items: center; gap: 25px; margin-bottom: 20px;">
+              <div style="font-size: 48px;">📊</div>
+              <h3 style="font-size: 28px; font-weight: 700; color: #e0e7ff; margin: 0;">Advanced Analytics</h3>
+            </div>
+            <p style="font-size: 18px; color: #94a3b8; line-height: 1.6; margin: 0;">Deep insights into your productivity and performance</p>
+          </div>
+          <div class="glass-card fragment fade-left">
+            <div style="display: flex; align-items: center; gap: 25px; margin-bottom: 20px;">
+              <div style="font-size: 48px;">🌍</div>
+              <h3 style="font-size: 28px; font-weight: 700; color: #e0e7ff; margin: 0;">Global Network</h3>
+            </div>
+            <p style="font-size: 18px; color: #94a3b8; line-height: 1.6; margin: 0;">Connect with teams and customers worldwide</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: HOW IT WORKS -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; padding: 60px;"
+        data-background-gradient="linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)">
+        <h2 class="gradient-text" style="margin-bottom: 60px; font-size: 56px;">How It Works</h2>
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div class="fragment fade-right" style="flex: 1; text-align: center; padding: 20px;">
-                <div style="width: 100px; height: 100px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 800;">1</div>
-                <h3 style="font-size: 24px; font-weight: 600; margin-bottom: 10px;">Sign Up</h3>
-                <p style="font-size: 16px; opacity: 0.8;">Create your account</p>
-            </div>
-            <div style="font-size: 40px; opacity: 0.5;">→</div>
-            <div class="fragment fade-up" style="flex: 1; text-align: center; padding: 20px;">
-                <div style="width: 100px; height: 100px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 800;">2</div>
-                <h3 style="font-size: 24px; font-weight: 600; margin-bottom: 10px;">Configure</h3>
-                <p style="font-size: 16px; opacity: 0.8;">Set your preferences</p>
-            </div>
-            <div style="font-size: 40px; opacity: 0.5;">→</div>
-            <div class="fragment fade-left" style="flex: 1; text-align: center; padding: 20px;">
-                <div style="width: 100px; height: 100px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 800;">3</div>
-                <h3 style="font-size: 24px; font-weight: 600; margin-bottom: 10px;">Launch</h3>
-                <p style="font-size: 16px; opacity: 0.8;">Start using immediately</p>
-            </div>
+          <div class="fragment fade-right" style="flex: 1; text-align: center; padding: 20px;">
+            <div class="step-circle">1</div>
+            <h3 style="font-size: 28px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Sign Up</h3>
+            <p style="font-size: 18px; color: #94a3b8;">Create your account in seconds</p>
+          </div>
+          <div style="font-size: 48px; color: #f093fb; opacity: 0.6;">→</div>
+          <div class="fragment fade-up" style="flex: 1; text-align: center; padding: 20px;">
+            <div class="step-circle">2</div>
+            <h3 style="font-size: 28px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Configure</h3>
+            <p style="font-size: 18px; color: #94a3b8;">Set your preferences</p>
+          </div>
+          <div style="font-size: 48px; color: #f093fb; opacity: 0.6;">→</div>
+          <div class="fragment fade-left" style="flex: 1; text-align: center; padding: 20px;">
+            <div class="step-circle">3</div>
+            <h3 style="font-size: 28px; font-weight: 700; margin-bottom: 12px; color: #e0e7ff;">Launch</h3>
+            <p style="font-size: 18px; color: #94a3b8;">Start using immediately</p>
+          </div>
         </div>
-    </div>
+      </section>
 
-    <!-- Slide 4: CTA -->
-    <div class="slide" data-transition="zoom" style="width: 1280px; height: 720px; background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center;">
-        <div style="text-align: center; color: white;">
-            <h1 class="fragment fade-up" style="font-size: 64px; font-weight: 800; margin-bottom: 20px;">Get Started Today</h1>
-            <p class="fragment fade-up" style="font-size: 24px; margin-bottom: 40px; opacity: 0.9;">Join thousands of happy customers</p>
-            <div class="fragment fade-up">
-                <div style="background: white; color: #8b5cf6; padding: 20px 50px; border-radius: 50px; font-size: 20px; font-weight: 600; display: inline-block; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">Start Free Trial</div>
-            </div>
+      <!-- SLIDE 5: CTA -->
+      <section class="slide" style="width: 1280px; height: 720px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;"
+        data-background-gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #ff9a9e 100%)">
+        <div class="floating-particle" style="top: -150px; left: -150px; background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);"></div>
+        <div class="floating-particle" style="bottom: -150px; right: -150px; background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);"></div>
+        <div style="position: relative; z-index: 1; text-align: center;">
+          <div class="fragment fade-up" style="margin-bottom: 30px;">
+            <div style="font-size: 80px;">🎉</div>
+          </div>
+          <h1 class="fragment fade-up" style="font-size: 72px; font-weight: 900; margin-bottom: 30px; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.2);">Get Started Today</h1>
+          <p class="fragment fade-up" style="font-size: 28px; margin-bottom: 50px; opacity: 0.95; color: white;">Join thousands of happy customers</p>
+          <div class="fragment fade-up">
+            <div class="cta-button">Start Free Trial →</div>
+          </div>
+          <div class="fragment fade-up" style="margin-top: 40px;">
+            <p style="font-size: 18px; color: rgba(255,255,255,0.8);">No credit card required • 14-day free trial • Cancel anytime</p>
+          </div>
         </div>
+      </section>
+
     </div>
-</div>`
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.0.4/reveal.min.js"></script>
+  <script>
+    (function() {
+      if (typeof Reveal !== 'undefined') {
+        Reveal.initialize({
+          embedded: true, hash: false, history: false, keyboard: false, overview: false,
+          progress: false, controls: false, transition: 'convex', backgroundTransition: 'fade',
+          autoAnimateEasing: 'ease-out', autoAnimateDuration: 0.8, width: 1280, height: 720
+        });
+      }
+    })();
+  </script>
+</body>
+</html>`
     }
 ];

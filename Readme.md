@@ -63,11 +63,13 @@ python -m http.server 8000
 Or simply open `demo/index.html` directly in your browser.
 
 **Demo Features:**
-- 🎨 **5 Pre-built Templates**: Basic slides, dashboards, multi-slide presentations, reports, and creative designs
-- 🔧 **Live Code Editor**: Edit HTML/CSS in real-time with CodeMirror
+- 🎨 **3 Premium Templates**: Python Intro, Business Report, Product Launch with glassmorphism design
+- 🔧 **Live Code Editor**: Edit HTML/CSS in real-time with CodeMirror (paste code directly with Ctrl+V)
+- 📁 **Custom HTML Upload**: Upload your own HTML files from your computer
 - ⚙️ **Configurable Options**: Customize export settings (fonts, transitions, margins, etc.)
 - 👀 **Live Preview**: See changes instantly as you edit
 - 📥 **One-Click Export**: Download PPTX files instantly
+- ✨ **Fragment Animations**: Full support for Reveal.js fragments and transitions
 
 ## Usage
 

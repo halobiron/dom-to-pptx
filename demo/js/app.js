@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupExportButton();
     setupOptionsPanel();
     setupSlideNavigation();
+    setupCustomHtmlUpload();
 
     // Load first template
     if (templates.length > 0) {
@@ -113,8 +114,8 @@ function initReveal(revealEl, previewContent) {
         revealEl.style.height = previewContent.style.height = '720px';
         
         window.currentDeck = new Reveal(revealEl, {
-            hash: false, embedded: true, keyboard: false, 
-            transition: document.getElementById('transition').value || 'slide',
+            hash: false, embedded: true, keyboard: false,
+            transition: 'slide',
             width: 1280, height: 720, margin: 0,
             minScale: 1, maxScale: 1, disableLayout: false
         });
@@ -235,65 +236,85 @@ async function exportToPptx() {
 
 // Export multiple slides
 async function exportMultipleSlides(slidesArray, config) {
+    const previewContent = document.getElementById('previewContent');
+
+    // Save complete state for all slides
     const originalStates = slidesArray.map(slide => ({
         display: slide.style.display,
         visibility: slide.style.visibility,
-        opacity: slide.style.opacity
+        opacity: slide.style.opacity,
+        transform: slide.style.transform,
+        width: slide.style.width,
+        height: slide.style.height
     }));
 
-    // Show all slides for export
-    slidesArray.forEach(slide => {
-        slide.style.display = 'block';
-        slide.style.visibility = 'visible';
-        slide.style.opacity = '1';
-    });
+    // Also save reveal container states
+    const revealEl = previewContent.querySelector('.reveal');
+    const slidesContainer = previewContent.querySelector('.slides');
+    const revealStates = {
+        revealWidth: revealEl?.style.width || '',
+        revealHeight: revealEl?.style.height || '',
+        slidesWidth: slidesContainer?.style.width || '',
+        slidesHeight: slidesContainer?.style.height || ''
+    };
 
-    await new Promise(resolve => setTimeout(resolve, 300));
-    await domToPptx.exportToPptx(slidesArray, config);
+    try {
+        // Wait for DOM to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Restore original states
-    slidesArray.forEach((slide, index) => {
-        const state = originalStates[index];
-        slide.style.display = state.display;
-        slide.style.visibility = state.visibility;
-        slide.style.opacity = state.opacity;
-    });
+        // Export
+        await domToPptx.exportToPptx(slidesArray, config);
 
-    // Restore current slide view
-    showSlide(currentSlideIndex);
+    } finally {
+        // Restore all states
+        slidesArray.forEach((slide, index) => {
+            const state = originalStates[index];
+            slide.style.display = state.display;
+            slide.style.visibility = state.visibility;
+            slide.style.opacity = state.opacity;
+            slide.style.transform = state.transform;
+            slide.style.width = state.width;
+            slide.style.height = state.height;
+        });
+
+        // Restore reveal container states
+        if (revealEl) {
+            revealEl.style.width = revealStates.revealWidth;
+            revealEl.style.height = revealStates.revealHeight;
+        }
+        if (slidesContainer) {
+            slidesContainer.style.width = revealStates.slidesWidth;
+            slidesContainer.style.height = revealStates.slidesHeight;
+        }
+
+        // Sync Reveal.js if it exists
+        if (typeof Reveal !== 'undefined' && revealEl) {
+            try {
+                Reveal.sync();
+                Reveal.layout();
+            } catch (e) {
+                console.warn('Reveal sync error:', e);
+            }
+        }
+
+        // Restore current slide view
+        showSlide(currentSlideIndex);
+    }
 }
 
 // Get config
 function getConfig() {
     const fileName = document.getElementById('fileName').value || 'presentation.pptx';
-    const autoEmbedFonts = document.getElementById('autoEmbedFonts').checked;
-    const svgAsVector = document.getElementById('svgAsVector').checked;
-    const transition = document.getElementById('transition').value || undefined;
-    const margin = parseInt(document.getElementById('margin').value) / 100;
-    const listBefore = parseInt(document.getElementById('listBefore').value);
-    const listAfter = parseInt(document.getElementById('listAfter').value);
 
-    const config = { fileName, autoEmbedFonts, svgAsVector, margin };
-
-    if (transition) config.transition = transition;
-    if (listBefore || listAfter) {
-        config.listConfig = { spacing: {} };
-        if (listBefore) config.listConfig.spacing.before = listBefore;
-        if (listAfter) config.listConfig.spacing.after = listAfter;
-    }
-
-    return config;
+    return {
+        fileName,
+        autoEmbedFonts: true,
+        svgAsVector: true
+    };
 }
 
 // Setup options
 function setupOptionsPanel() {
-    const marginSlider = document.getElementById('margin');
-    const marginValue = document.getElementById('marginValue');
-
-    marginSlider.addEventListener('input', () => {
-        marginValue.textContent = marginSlider.value;
-    });
-
     // Handle window resize
     let resizeTimeout;
     window.addEventListener('resize', () => {
@@ -340,4 +361,58 @@ function showToast(title, message, type = 'info') {
     toast.classList.add(type, 'show');
 
     setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// Setup custom HTML upload
+function setupCustomHtmlUpload() {
+    const fileInput = document.getElementById('htmlFileUpload');
+
+    // Handle file upload
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const html = await readFile(file);
+            loadCustomHtml(html, file.name);
+            showToast('Thành công!', `Đã tải file "${file.name}"`, 'success');
+        } catch (error) {
+            console.error('File read error:', error);
+            showToast('Lỗi!', 'Không thể đọc file HTML', 'error');
+        }
+
+        // Reset file input
+        fileInput.value = '';
+    });
+}
+
+// Read file as text
+function readFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+    });
+}
+
+// Load custom HTML into editor
+function loadCustomHtml(html, fileName) {
+    currentTemplate = null;
+    currentSlideIndex = 0;
+
+    // Remove active state from template buttons
+    document.querySelectorAll('#templatesList button').forEach(btn => {
+        btn.classList.remove('bg-blue-50', 'text-blue-600', 'font-semibold');
+    });
+
+    // Update file name in export options
+    const fileNameInput = document.getElementById('fileName');
+    const baseName = fileName.replace(/\.(html?|htm)$/i, '');
+    fileNameInput.value = `${baseName}.pptx`;
+
+    // Set editor content
+    codeEditor.setValue(html);
+    codeEditor.clearHistory();
+    updatePreview();
 }
