@@ -39,7 +39,81 @@ Most HTML-to-PPTX libraries fail when faced with modern web design. They break o
 - **Border Radius Math:** Calculates perfect corner rounding percentages based on element dimensions.
 - **Client-Side:** Runs entirely in the browser. No server required.
 
-## Installation
+## Quick Start for Non-Developers
+
+### 🎯 Try It Online Now
+
+If you have your own HTML file or AI-generated HTML file, follow these **3 simple steps**:
+
+**Step 1:** Wrap your content with `<div id="pptx-slide">` (place this in the `<body>` section)
+
+```html
+<body>
+  <div id="pptx-slide">
+    <h1>My Presentation</h1>
+    <p>Any content here will be exported!</p>
+  </div>
+</body>
+```
+
+**Step 2:** Add the library script before `</body>` (at the end of your HTML file)
+
+```html
+<body>
+  <!-- Your content here -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@halobiron/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
+</body>
+```
+
+**Step 3:** Add the export button after the script (anywhere in `<body>` where you want the button to appear)
+
+```html
+<body>
+  <div id="pptx-slide">
+    <h1>My Presentation</h1>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@halobiron/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
+
+  <!-- Add button here -->
+  <button onclick="domToPptx.exportToPptx('#pptx-slide')">Download PowerPoint</button>
+</body>
+```
+
+---
+
+### 📝 Complete Example
+
+Here's a complete HTML file you can copy and modify:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Presentation</title>
+</head>
+<body>
+
+  <!-- Step 1: Your slide content -->
+  <div id="pptx-slide">
+    <h1>Welcome to My Presentation</h1>
+    <p>This will be exported to PowerPoint!</p>
+  </div>
+
+  <!-- Step 2: Load the library -->
+  <script src="https://cdn.jsdelivr.net/npm/@halobiron/dom-to-pptx@latest/dist/dom-to-pptx.bundle.js"></script>
+
+  <!-- Step 3: Add export button -->
+  <button onclick="domToPptx.exportToPptx('#pptx-slide')">Download PowerPoint</button>
+
+</body>
+</html>
+```
+
+That's it! Save this as an `.html` file, open in your browser, and click the button!
+
+## Installation (For Developers)
 
 ```bash
 npm install @halobiron/dom-to-pptx
