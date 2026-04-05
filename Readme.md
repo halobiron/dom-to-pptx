@@ -1,16 +1,18 @@
 # dom-to-pptx
 
-**The High-Fidelity HTML to PowerPoint Converter (v1.1.5)**
+**The High-Fidelity HTML to PowerPoint Converter (v1.1.6)**
 
 Most HTML-to-PPTX libraries fail when faced with modern web design. They break on gradients, misalign text, ignore rounded corners, or simply take a screenshot (which isn't editable).
 
 **dom-to-pptx** is different. It is a **Coordinate Scraper & Style Engine** that traverses your DOM, calculates the exact computed styles of every element (Flexbox/Grid positions, complex gradients, shadows), and mathematically maps them to native PowerPoint shapes and text boxes. The result is a fully editable, vector-sharp presentation that looks exactly like your web view.
 
-### 🛠️ Updates in v1.1.5
+### 🛠️ Updates in v1.1.6
 
-- **SVG Vector Export:** New `svgAsVector` option keeps SVG elements as vectors instead of rasterizing them. This enables "Convert to Shape" in PowerPoint for editable charts and graphics.
-- **Fontawesome Icon partially rendering:** Solved icon clipping issues by injecting a global style tag to enforce FontAwesome font family and correct image display properties during potential rasterization.
-- **Recursion Logic** Resolved recursion issues where containers were incorrectly rasterized as images, making children uneditable.
+- **Advanced Table Rendering:** Resolved rendering issues by aligning cell border formats with the PptxGenJS positional array API.
+- **Portrait & Custom Layouts:** Implemented support for portrait view and custom slide dimensions via new `width`, `height`, and `layout` options.
+- **Grid-based Table Logic:** Implemented a simulation for `border-spacing` using cell margins to maintain visual gaps in PptxGenJS native tables.
+- **Improved Typography:** Added support for `text-transform` (uppercase, lowercase, capitalize) and `letter-spacing` (charSpacing).
+- **Nested Cell Formatting:** Table cells now support rich text runs, preserving bold, italic, and colored spans within cells.
 
 ## Features
 
@@ -294,6 +296,9 @@ Returns: `Promise<Blob>` - Resolves with the generated PPTX file data (Blob).
 | `fonts`          | `Array`   | `[]`            | Manual array of font objects: `{ name, url }`.                                                                |
 | `skipDownload`   | `boolean` | `false`         | If `true`, the file is not downloaded automatically. Use the returned `Blob` for custom handling (upload).    |
 | `svgAsVector`    | `boolean` | `false`         | If `true`, keeps SVG elements as vectors (not rasterized). Enables "Convert to Shape" in PowerPoint.          |
+| `layout`         | `string`  | `"LAYOUT_16x9"` | Slide layout name (e.g., `LAYOUT_4x3`, `LAYOUT_16x10`, `LAYOUT_WIDE`).                                        |
+| `width`          | `number`  | `10`            | Custom slide width in inches (requires `height` to be set).                                                   |
+| `height`         | `number`  | `5.625`         | Custom slide height in inches (requires `width` to be set).                                                   |
 | `listConfig`     | `object`  | `undefined`     | Global overrides for list styles. Structure: `{ color: string, spacing: { before: number, after: number } }`. |
 
 **List Configuration Example:**

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.6] - 2026-04-05
+
+### Added
+
+- **Portrait & Custom Layouts**: Implemented support for portrait view and custom slide dimensions via `width`, `height`, and `layout` options in `exportToPptx`.
+- **Advanced Table Typography**: Added support for `text-transform` (uppercase, lowercase, capitalize) and `letter-spacing` (charSpacing) in table cells and nested text.
+- **Table Cell Gradient Fallback**: Table cells with background gradients now automatically extract and use a fallback color.
+
+### Fixed
+
+- **Table Rendering Precision**: Resolved rendering issues by aligning cell border formats with the PptxGenJS positional array API `[top, right, bottom, left]`.
+- **Border Naming**: Fixed border property naming from `style` to `type` as required by PptxGenJS v3.
+- **Table Layout**: Improved `colWidths` calculation to correctly handle `colspan` during layout extraction.
+- **Rich Text in Cells**: Refactored cell text extraction to recurse into child nodes, preserving nested formatting (bold, color, etc.) as native rich text runs.
+
+### Changed
+
+- **Refactored Text Extraction**: Moved `collectListParts` to `utils.js` as `collectTextParts` to be shared between list and table processing.
+
 ## [1.1.5] - 2026-02-07
 
 ### Added
