@@ -1020,7 +1020,7 @@ function prepareRenderItem(
 
       const pt = parseFloat(style.paddingTop) || 0;
       const pb = parseFloat(style.paddingBottom) || 0;
-      if (Math.abs(pt - pb) < 2 && bgColorObj.hex) valign = 'middle';
+      if (Math.abs(pt - pb) < 2) valign = 'middle';
 
       let padding = getPadding(style, config.scale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
