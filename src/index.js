@@ -334,7 +334,9 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const bStyle = window.getComputedStyle(document.body);
   const slideBgColor = getHex(root.getAttribute('data-background-color')) || getHex(rStyle.backgroundColor) || getHex(bStyle.backgroundColor);
   const slideBgImg = root.getAttribute('data-background-image') || rStyle.backgroundImage?.match(/url\(["']?(.*?)["']?\)/)?.[1];
-  const slideBgTransparency = (1 - (parseFloat(root.getAttribute('data-background-opacity')) || 1)) * 100;
+  const rawBgOpacity = parseFloat(root.getAttribute('data-background-opacity'));
+  const slideBgOpacity = Number.isFinite(rawBgOpacity) ? Math.max(0, Math.min(1, rawBgOpacity)) : 1;
+  const slideBgTransparency = (1 - slideBgOpacity) * 100;
 
   if (slideBgColor) {
     renderQueue.push({
