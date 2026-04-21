@@ -14,6 +14,7 @@ import {
   getVisibleShadow,
   generateGradientSVG,
   getRotation,
+  getWritingModeVert,
   svgToPng,
   svgToSvg,
   getPadding,
@@ -57,7 +58,7 @@ export async function exportToPptx(target, options = {}) {
   const PptxConstructor = resolvePptxConstructor(PptxGenJS);
   if (!PptxConstructor) throw new Error('PptxGenJS constructor not found.');
   const pptx = new PptxConstructor();
-  
+
   // 1. Layout Handling
   let finalWidth = 10; // default 16:9
   let finalHeight = 5.625;
@@ -72,14 +73,14 @@ export async function exportToPptx(target, options = {}) {
     // Map standard layouts for internal scale calculation if possible,
     // though PptxGenJS defaults to 16:9 if unknown.
     if (options.layout === 'LAYOUT_4x3') {
-        finalWidth = 10;
-        finalHeight = 7.5;
+      finalWidth = 10;
+      finalHeight = 7.5;
     } else if (options.layout === 'LAYOUT_16x10') {
-        finalWidth = 10;
-        finalHeight = 6.25;
+      finalWidth = 10;
+      finalHeight = 6.25;
     } else if (options.layout === 'LAYOUT_WIDE') {
-        finalWidth = 13.3;
-        finalHeight = 7.5;
+      finalWidth = 13.3;
+      finalHeight = 7.5;
     }
   } else {
     pptx.layout = 'LAYOUT_16x9';
@@ -89,7 +90,7 @@ export async function exportToPptx(target, options = {}) {
   const extendedOptions = {
     ...options,
     _slideWidth: finalWidth,
-    _slideHeight: finalHeight
+    _slideHeight: finalHeight,
   };
 
   const elements = Array.isArray(target) ? target : [target];
@@ -552,6 +553,7 @@ function prepareRenderItem(
 
   const zIndex = effectiveZIndex;
   const rotation = getRotation(style.transform);
+  const writingModeVert = getWritingModeVert(style.writingMode);
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
@@ -796,6 +798,7 @@ function prepareRenderItem(
           margin: 0,
           autoFit: false,
           wrap: true,
+          vert: writingModeVert,
         },
       });
 
@@ -1157,6 +1160,7 @@ function prepareRenderItem(
           margin: 0,
           wrap: true,
           autoFit: false,
+          vert: writingModeVert,
         },
       });
     }
@@ -1266,6 +1270,7 @@ function prepareRenderItem(
           margin: 0,
           wrap: true,
           autoFit: false,
+          vert: writingModeVert,
         };
         items.push({
           type: 'text',
@@ -1332,7 +1337,6 @@ function isComplexHierarchy(root) {
   }
   return false;
 }
-
 
 function createCompositeBorderItems(sides, x, y, w, h, scale, zIndex, domOrder) {
   const items = [];

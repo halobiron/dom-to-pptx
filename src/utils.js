@@ -65,8 +65,8 @@ export function extractTableData(node, scale) {
   // 2. Iterate Rows
   const trList = node.querySelectorAll('tr');
   trList.forEach((tr) => {
-      const rowData = [];
-      const cellList = Array.from(tr.children).filter((c) => ['TD', 'TH'].includes(c.tagName));
+    const rowData = [];
+    const cellList = Array.from(tr.children).filter((c) => ['TD', 'TH'].includes(c.tagName));
 
       cellList.forEach((cell) => {
         const style = window.getComputedStyle(cell);
@@ -80,7 +80,11 @@ export function extractTableData(node, scale) {
 
       // B. Cell Background
       let bg = parseColor(style.backgroundColor);
-      if ((!bg.hex || bg.opacity === 0) && style.backgroundImage && style.backgroundImage !== 'none') {
+      if (
+        (!bg.hex || bg.opacity === 0) &&
+        style.backgroundImage &&
+        style.backgroundImage !== 'none'
+      ) {
         const fallback = getGradientFallbackColor(style.backgroundImage);
         if (fallback) bg = parseColor(fallback);
       }
@@ -133,12 +137,7 @@ export function extractTableData(node, scale) {
           rowspan: parseInt(cell.getAttribute('rowspan')) || null,
           colspan: parseInt(cell.getAttribute('colspan')) || null,
 
-          border: [
-            borderTop,
-            borderRight,
-            borderBottom,
-            borderLeft,
-          ],
+          border: [borderTop, borderRight, borderBottom, borderLeft],
         },
       });
     });
@@ -571,6 +570,19 @@ export function getRotation(transformStr) {
   const a = parseFloat(values[0]);
   const b = parseFloat(values[1]);
   return Math.round(Math.atan2(b, a) * (180 / Math.PI));
+}
+
+export function getWritingModeVert(writingMode) {
+  switch (writingMode) {
+    case 'vertical-rl':
+    case 'vertical-lr':
+    case 'sideways-rl':
+      return 'vert';
+    case 'sideways-lr':
+      return 'vert270';
+    default:
+      return null;
+  }
 }
 
 /**
