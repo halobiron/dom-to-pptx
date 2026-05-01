@@ -49,4 +49,15 @@ These classes are examples; dom-to-pptx reads computed styles, so any combinatio
 - Some advanced CSS features (CSS variables used as colors, filters beyond blur) may not map 1:1.
 - For images to be processed via canvas (rounded images), the source must be CORS-accessible (`Access-Control-Allow-Origin` header) or the image will be skipped or rendered as-is.
 
+### Recommended Patterns & Best Practices
+
+To achieve the highest fidelity and most reliable rendering in PowerPoint, consider adopting these HTML/CSS patterns:
+
+- **Layouts (Tables vs. Grid/Flex):** While native HTML `<table>` elements are supported (mapping to PptxGenJS native tables), native tables in PowerPoint can be structurally rigid. For absolute layout control, perfect border-radius, and guaranteed visual consistency, **prefer utilizing a `div` structure with `display: grid` or `display: flex`**. These containers dynamically transform into crisp, independent PowerPoint shapes. 
+- **Images and Backgrounds:**
+  - `<img src="...">` tags are fully supported and mapped perfectly, taking `object-fit` and `object-position` into consideration.
+  - CSS `background-image: url(...)` is also natively parsed. It correctly handles `background-size` (cover/contain) and translates them into matching image crop parameters in PPTX.
+  - CSS `background-image: linear-gradient(...)` transforms into pure vector SVG gradients without requiring rasterization.
+- **Writing Modes:** Modern CSS `writing-mode` (`vertical-rl`, `vertical-lr`) properties are supported. Combine them with `text-orientation: upright` to natively tap into PowerPoint's Stacked Vertical Text engine, or leave defaults to map to standard East-Asian rotated text layouts.
+
 If a style or element is critical and you find it not behaving as expected, open an issue with a minimal repro and I'll add support or provide a workaround.

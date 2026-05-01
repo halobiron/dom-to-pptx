@@ -9,6 +9,42 @@ All notable changes to this project will be documented in this file.
 - **Slide Transitions**: Added support for global and per-slide transitions (via `options.transition` or `data-transition` attribute). Detects Reveal.js transitions automatically.
 - **Slide Margin**: Added `options.margin` to set a global margin for all slides.
 - **Animation Support (Fragments)**: Full support for Reveal.js fragments. Elements with the `.fragment` class are now converted into native PowerPoint animations (Fade, Fly-in, Zoom, Wipe, etc.).
+## [1.1.7] - 2026-04-21
+
+### Added
+
+- **Native URL Background-Image**: Extended CSS extraction to organically parse `background-image: url('...')` blocks, leveraging CSS properties like `background-size` directly into the PPTX image crops.
+
+### Fixed
+
+- **Fractional Font Precision**: Abandoned destructive rounding when resolving HTML pixel layouts into PPTX typographical points (`pt`), enabling accurate 1/10th decimal scaling for accurate small font conversions.
+- **AutoFit CJK Word Wraps**: Swapped out hard bounding boxes on textual spans to inject `<a:spAutoFit/>`, letting PowerPoint actively grow the block bounds when fluid lines or CJK formats forcefully wrap beyond the original Chrome layout metric.
+- **Table Nested Text Line Breaks**: Remapped logic blocking structural line wrapping (e.g. `<br>`, `<div>`) within nested `<td/th>` wrappers preventing paragraph-mushing over complex table schemas.
+- **Vertical Flow Orientation**: Fixed CSS `writing-mode` matching. Dynamically routes explicit `vertical-lr` and `vertical-rl` coupled with CSS `text-orientation: upright` specifically into their exact PowerPoint vertical equivalents.
+- **Corrupt PPTX Fix (rectRadius)**: Resolved a critical "corrupt presentation" error caused by passing raw ratios for `rectRadius` to PptxGenJS. The library now calculates and passes absolute inch values capped at 50% for maximum stability.
+
+### Changed
+
+- **Documentation Standards**: Extensively published guidelines establishing CSS `grid`/`flex` layout priority over restrictive legacy `table` parameters in SUPPORTED.md.
+
+## [1.1.6] - 2026-04-05
+
+### Added
+
+- **Portrait & Custom Layouts**: Implemented support for portrait view and custom slide dimensions via `width`, `height`, and `layout` options in `exportToPptx`.
+- **Advanced Table Typography**: Added support for `text-transform` (uppercase, lowercase, capitalize) and `letter-spacing` (charSpacing) in table cells and nested text.
+- **Table Cell Gradient Fallback**: Table cells with background gradients now automatically extract and use a fallback color.
+
+### Fixed
+
+- **Table Rendering Precision**: Resolved rendering issues by aligning cell border formats with the PptxGenJS positional array API `[top, right, bottom, left]`.
+- **Border Naming**: Fixed border property naming from `style` to `type` as required by PptxGenJS v3.
+- **Table Layout**: Improved `colWidths` calculation to correctly handle `colspan` during layout extraction.
+- **Rich Text in Cells**: Refactored cell text extraction to recurse into child nodes, preserving nested formatting (bold, color, etc.) as native rich text runs.
+
+### Changed
+
+- **Refactored Text Extraction**: Moved `collectListParts` to `utils.js` as `collectTextParts` to be shared between list and table processing.
 
 ## [1.1.5] - 2026-02-07
 

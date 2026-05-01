@@ -27,7 +27,7 @@ function getTableBorder(style, side, scale) {
   return {
     pt: width * 0.75 * scale, // Convert px to pt
     color: color.hex,
-    style: dash,
+    type: dash,
   };
 }
 
@@ -47,10 +47,20 @@ export function extractTableData(node, scale, intrinsicScale = scale) {
     const cells = Array.from(firstRow.children);
     cells.forEach((cell) => {
       const rect = cell.getBoundingClientRect();
-      const wIn = rect.width * (1 / 96) * scale;
-      colWidths.push(wIn);
+      const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+      const wIn = (rect.width * (1 / 96) * scale) / colspan;
+      for (let i = 0; i < colspan; i++) {
+        colWidths.push(wIn);
+      }
     });
   }
+
+  const tableStyle = window.getComputedStyle(node);
+  const borderSpacing = tableStyle.borderSpacing.split(' ');
+  const hSpace = parseFloat(borderSpacing[0]) || 0;
+  const vSpace = parseFloat(borderSpacing[1] || borderSpacing[0]) || 0;
+  const hSpacePt = hSpace * 0.75 * scale;
+  const vSpacePt = vSpace * 0.75 * scale;
 
   // 2. Iterate Rows
   const trList = node.querySelectorAll('tr');
@@ -60,13 +70,24 @@ export function extractTableData(node, scale, intrinsicScale = scale) {
 
     cellList.forEach((cell) => {
       const style = window.getComputedStyle(cell);
-      const cellText = cell.innerText.replace(/[\n\r\t]+/g, ' ').trim();
+      const cellParts = collectTextParts(cell, style, scale);
+      // Fallback to plain text if collectTextParts returns empty/invalid
+      const cellText = (cellParts && cellParts.length > 0) ? cellParts
+        : cell.innerText.replace(/[\n\r\t]+/g, ' ').trim();
 
       // A. Text Style
       const textStyle = getTextStyle(style, intrinsicScale);
 
       // B. Cell Background
-      const bg = parseColor(style.backgroundColor);
+      let bg = parseColor(style.backgroundColor);
+      if (
+        (!bg.hex || bg.opacity === 0) &&
+        style.backgroundImage &&
+        style.backgroundImage !== 'none'
+      ) {
+        const fallback = getGradientFallbackColor(style.backgroundImage);
+        if (fallback) bg = parseColor(fallback);
+      }
       const fill = bg.hex && bg.opacity > 0 ? { color: bg.hex } : null;
 
       // C. Alignment
@@ -85,10 +106,10 @@ export function extractTableData(node, scale, intrinsicScale = scale) {
       // PptxGenJS expects points (pt) for margin: [t, r, b, l]
       // or discrete properties. Let's use discrete for clarity.
       const margin = [
-        padding[0] * 72, // top
-        padding[1] * 72, // right
-        padding[2] * 72, // bottom
-        padding[3] * 72, // left
+        padding[0] * 72 + vSpacePt / 2, // top
+        padding[1] * 72 + hSpacePt / 2, // right
+        padding[2] * 72 + vSpacePt / 2, // bottom
+        padding[3] * 72 + hSpacePt / 2, // left
       ];
 
       // E. Borders
@@ -116,13 +137,7 @@ export function extractTableData(node, scale, intrinsicScale = scale) {
           rowspan: parseInt(cell.getAttribute('rowspan')) || null,
           colspan: parseInt(cell.getAttribute('colspan')) || null,
 
-          border: {
-            pt: null, // trigger explicit object structure
-            top: borderTop,
-            right: borderRight,
-            bottom: borderBottom,
-            left: borderLeft,
-          },
+          border: [borderTop, borderRight, borderBottom, borderLeft],
         },
       });
     });
@@ -162,7 +177,9 @@ export function getAccumulatedScale(node, limitNode, startStyle) {
       try {
         const m = new DOMMatrix(transform);
         scale *= Math.hypot(m.a, m.b); // Use uniform scale factor
-      } catch (e) { }
+      } catch {
+        // Ignore transforms that DOMMatrix cannot parse.
+      }
     }
   }
 
@@ -369,7 +386,9 @@ export function parseColor(str) {
       document.body.appendChild(tempDiv);
       str = window.getComputedStyle(tempDiv).color;
       document.body.removeChild(tempDiv);
-    } catch (e) { }
+    } catch {
+      // Fall back to the original input if CSS variable resolution fails.
+    }
   }
 
   const ctx = getCtx();
@@ -446,6 +465,7 @@ export function getSoftEdges(filterStr, scale) {
 
 export function getTextStyle(style, scale) {
   let colorObj = parseColor(style.color);
+  const backgroundColor = parseColor(style.backgroundColor);
 
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
   if (colorObj.opacity === 0 && bgClip === 'text') {
@@ -485,13 +505,10 @@ export function getTextStyle(style, scale) {
   if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
   if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
 
-  // Calculate font size using standard PX-to-PT conversion (0.75) and apply scaling
-  const fontSize = Math.round(fontSizePx * scale * 0.72);
-
   return {
     color: colorObj.hex || '000000',
     fontFace: style.fontFamily.split(',')[0].replace(/['"]/g, ''),
-    fontSize: fontSize,
+    fontSize: Number((fontSizePx * 0.75 * scale).toFixed(1)),
     bold: parseInt(style.fontWeight) >= 600,
     italic: style.fontStyle === 'italic',
     underline: style.textDecoration.includes('underline'),
@@ -500,8 +517,12 @@ export function getTextStyle(style, scale) {
     ...(paraSpaceBefore > 0 && { paraSpaceBefore }),
     ...(paraSpaceAfter > 0 && { paraSpaceAfter }),
     // Map background color to highlight if present
-    ...(parseColor(style.backgroundColor).hex
-      ? { highlight: parseColor(style.backgroundColor).hex }
+    ...(backgroundColor.hex
+      ? { highlight: backgroundColor.hex }
+      : {}),
+    // Mapping letter-spacing to charSpacing
+    ...(style.letterSpacing && style.letterSpacing !== 'normal'
+      ? { charSpacing: parseFloat(style.letterSpacing) * 0.75 * scale }
       : {}),
   };
 }
@@ -592,6 +613,23 @@ export function getRotation(transformStr) {
   const a = parseFloat(values[0]);
   const b = parseFloat(values[1]);
   return Math.round(Math.atan2(b, a) * (180 / Math.PI));
+}
+
+export function getWritingModeVert(writingMode, textOrientation) {
+  const isUpright = textOrientation === 'upright';
+
+  switch (writingMode) {
+    case 'vertical-rl':
+      return isUpright ? 'wordArtVertRtl' : 'eaVert';
+    case 'vertical-lr':
+      return isUpright ? 'wordArtVert' : 'mongolianVert';
+    case 'sideways-rl':
+      return 'vert';
+    case 'sideways-lr':
+      return 'vert270';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -847,6 +885,30 @@ export function generateGradientSVG(w, h, bgString, radius, border) {
       strokeAttr = `stroke="#${border.color}" stroke-width="${border.width}"`;
     }
 
+    let tl = 0, tr = 0, br = 0, bl = 0;
+    if (typeof radius === 'object' && radius !== null) {
+      tl = radius.tl || 0;
+      tr = radius.tr || 0;
+      br = radius.br || 0;
+      bl = radius.bl || 0;
+    } else {
+      tl = tr = br = bl = radius || 0;
+    }
+
+    const factor = Math.min(
+      w / (tl + tr) || Infinity,
+      h / (tr + br) || Infinity,
+      w / (br + bl) || Infinity,
+      h / (bl + tl) || Infinity
+    );
+
+    if (factor < 1) {
+      tl *= factor; tr *= factor; br *= factor; bl *= factor;
+    }
+
+    // Generate absolute path based on radius bounds
+    const pathD = `M ${tl} 0 L ${w - tr} 0 A ${tr} ${tr} 0 0 1 ${w} ${tr} L ${w} ${h - br} A ${br} ${br} 0 0 1 ${w - br} ${h} L ${bl} ${h} A ${bl} ${bl} 0 0 1 0 ${h - bl} L 0 ${tl} A ${tl} ${tl} 0 0 1 ${tl} 0 Z`;
+
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
           <defs>
@@ -854,7 +916,7 @@ export function generateGradientSVG(w, h, bgString, radius, border) {
               ${stopsXML}
             </linearGradient>
           </defs>
-          <rect x="0" y="0" width="${w}" height="${h}" rx="${radius}" ry="${radius}" fill="url(#grad)" ${strokeAttr} />
+          <path d="${pathD}" fill="url(#grad)" ${strokeAttr} />
       </svg>`;
 
     return 'data:image/svg+xml;base64,' + btoa(svg);
@@ -1014,4 +1076,84 @@ export function tempOverride(el, styles) {
       else el.style.removeProperty(prop);
     }
   };
+}
+export function collectTextParts(node, parentStyle, scale) {
+  const parts = [];
+
+  // Check for CSS Content (::before) - often used for icons
+  if (node.nodeType === 1) {
+    const beforeStyle = window.getComputedStyle(node, '::before');
+    const content = beforeStyle.content;
+    if (content && content !== 'none' && content !== 'normal' && content !== '""') {
+      // Strip quotes
+      const cleanContent = content.replace(/^['"]|['"]$/g, '');
+      if (cleanContent.trim()) {
+        parts.push({
+          text: cleanContent + ' ', // Add space after icon
+          options: getTextStyle(window.getComputedStyle(node), scale),
+        });
+      }
+    }
+  }
+
+  let trimNextLeading = false;
+
+  node.childNodes.forEach((child, index) => {
+    if (child.nodeType === 3) {
+      // Text
+      let val = child.nodeValue.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ');
+
+      if (index === 0) val = val.trimStart();
+      if (trimNextLeading) {
+        val = val.trimStart();
+        trimNextLeading = false;
+      }
+      if (index === node.childNodes.length - 1) val = val.trimEnd();
+
+      if (val) {
+        // Use parent style if child is text node, otherwise current style
+        const styleToUse = node.nodeType === 1 ? window.getComputedStyle(node) : parentStyle;
+        const transform = styleToUse.textTransform;
+        if (transform === 'uppercase') val = val.toUpperCase();
+        else if (transform === 'lowercase') val = val.toLowerCase();
+        else if (transform === 'capitalize') val = val.replace(/\b\w/g, (c) => c.toUpperCase());
+
+        parts.push({
+          text: val,
+          options: getTextStyle(styleToUse, scale),
+        });
+      }
+    } else if (child.nodeType === 1) {
+      if (child.tagName === 'BR') {
+        if (parts.length > 0) {
+          const lastPart = parts[parts.length - 1];
+          if (lastPart.text && typeof lastPart.text === 'string') {
+            lastPart.text = lastPart.text.trimEnd();
+          }
+        }
+        parts.push({ text: '', options: { breakLine: true } });
+        trimNextLeading = true;
+      } else {
+        const isBlock = ['DIV', 'P', 'LI'].includes(child.tagName);
+        if (isBlock && parts.length > 0 && !parts[parts.length - 1].options?.breakLine) {
+          parts.push({ text: '', options: { breakLine: true } });
+        }
+
+        const childParts = collectTextParts(child, parentStyle, scale);
+        if (childParts.length > 0) parts.push(...childParts);
+
+        if (isBlock) {
+          parts.push({ text: '', options: { breakLine: true } });
+          trimNextLeading = true;
+        }
+      }
+    }
+  });
+
+  // Cleanup potential trailing empty breakLines
+  while (parts.length > 0 && parts[parts.length - 1].options?.breakLine && parts[parts.length - 1].text === '') {
+    parts.pop();
+  }
+
+  return parts;
 }

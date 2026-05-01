@@ -14,6 +14,7 @@ import {
   getVisibleShadow,
   generateGradientSVG,
   getRotation,
+  getWritingModeVert,
   svgToPng,
   svgToSvg,
   getPadding,
@@ -28,6 +29,7 @@ import {
   extractTableData,
   tempOverride,
   getAccumulatedScale,
+  collectTextParts,
 } from './utils.js';
 import { getProcessedImage } from './image-processor.js';
 
@@ -87,21 +89,29 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
 
   const zip = await JSZip.loadAsync(pptxBlob);
 
-  // Process each slide
-  for (let i = 0; i < slideTransitions.length; i++) {
-    const transitionKey = slideTransitions[i]; // e.g. 'fade', 'slide'
-    const innerXml = TRANSITION_MAP[transitionKey];
-    if (!innerXml) continue;
+  await Promise.all(
+    slideTransitions.map(async (transitionKey, index) => {
+      const innerXml = TRANSITION_MAP[transitionKey];
+      if (!innerXml) return;
 
-    const transitionXml = `<p:transition spd="med" dur="500">${innerXml}</p:transition>`;
-    // Remove existing transitions
-    xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
+      const slideFile = `ppt/slides/slide${index + 1}.xml`;
+      const file = zip.file(slideFile);
+      if (!file) return;
 
-    // Add transition after </p:cSld>
-    xmlStr = xmlStr.replace('</p:cSld>', '</p:cSld>' + transitionXml);
+      let xmlStr = await file.async('string');
+      const transitionXml = `<p:transition spd="med" dur="500">${innerXml}</p:transition>`;
 
-    zip.file(slideFile, xmlStr);
-  }
+      // Remove existing transitions so reruns stay idempotent.
+      xmlStr = xmlStr.replace(/<p:transition\b[^>]*>[\s\S]*?<\/p:transition>/g, '');
+
+      // Add transition after </p:cSld>
+      if (xmlStr.includes('</p:cSld>')) {
+        xmlStr = xmlStr.replace('</p:cSld>', '</p:cSld>' + transitionXml);
+      }
+
+      zip.file(slideFile, xmlStr);
+    })
+  );
 
   return await zip.generateAsync({ type: 'blob' });
 }
@@ -132,7 +142,40 @@ export async function exportToPptx(target, options = {}) {
   const PptxConstructor = resolvePptxConstructor(PptxGenJS);
   if (!PptxConstructor) throw new Error('PptxGenJS constructor not found.');
   const pptx = new PptxConstructor();
-  pptx.layout = 'LAYOUT_16x9';
+
+  // 1. Layout Handling
+  let finalWidth = 10; // default 16:9
+  let finalHeight = 5.625;
+
+  if (options.width && options.height) {
+    pptx.defineLayout({ name: 'CUSTOM', width: options.width, height: options.height });
+    pptx.layout = 'CUSTOM';
+    finalWidth = options.width;
+    finalHeight = options.height;
+  } else if (options.layout) {
+    pptx.layout = options.layout;
+    // Map standard layouts for internal scale calculation if possible,
+    // though PptxGenJS defaults to 16:9 if unknown.
+    if (options.layout === 'LAYOUT_4x3') {
+      finalWidth = 10;
+      finalHeight = 7.5;
+    } else if (options.layout === 'LAYOUT_16x10') {
+      finalWidth = 10;
+      finalHeight = 6.25;
+    } else if (options.layout === 'LAYOUT_WIDE') {
+      finalWidth = 13.3;
+      finalHeight = 7.5;
+    }
+  } else {
+    pptx.layout = 'LAYOUT_16x9';
+  }
+
+  // Pass these dimensions to options so processSlide can use them
+  const extendedOptions = {
+    ...options,
+    _slideWidth: finalWidth,
+    _slideHeight: finalHeight,
+  };
 
   const elements = Array.isArray(target) ? target : [target];
 
@@ -147,7 +190,7 @@ export async function exportToPptx(target, options = {}) {
       if (config && config.transition) {
         globalTransition = config.transition;
       }
-    } catch (e) {
+    } catch {
       // Silently ignore if Reveal.js is not available
     }
   }
@@ -173,7 +216,7 @@ export async function exportToPptx(target, options = {}) {
     slideTransitions.push(slideTransition);
 
     const slide = pptx.addSlide();
-    await processSlide(root, slide, pptx, options);
+    await processSlide(root, slide, pptx, extendedOptions);
   }
 
   // 3. Font Embedding Logic
@@ -304,8 +347,8 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   await new Promise((r) => setTimeout(r, 150));
 
   const rootRect = root.getBoundingClientRect();
-  const PPTX_WIDTH_IN = 10;
-  const PPTX_HEIGHT_IN = 5.625;
+  const PPTX_WIDTH_IN = globalOptions._slideWidth || 10;
+  const PPTX_HEIGHT_IN = globalOptions._slideHeight || 5.625;
 
   const contentWidthIn = rootRect.width * PX_TO_INCH;
   const contentHeightIn = rootRect.height * PX_TO_INCH;
@@ -761,7 +804,7 @@ function prepareRenderItem(
               options: getTextStyle(style, intrinsicScale),
             },
           ],
-          options: { x, y, w: unrotatedW + 0.05, h: unrotatedH, margin: 0, autoFit: true },
+          options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: true },
         },
       ],
       stopRecursion: false,
@@ -773,6 +816,7 @@ function prepareRenderItem(
 
   const zIndex = effectiveZIndex;
   const rotation = getRotation(style.transform);
+  const writingModeVert = getWritingModeVert(style.writingMode, style.textOrientation);
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
@@ -794,26 +838,240 @@ function prepareRenderItem(
 
   if (node.tagName === 'TABLE') {
     const tableData = extractTableData(node, config.scale, intrinsicScale);
+    const tableItems = [
+      {
+        type: 'table',
+        zIndex: effectiveZIndex,
+        domOrder,
+        tableData: tableData,
+        options: { x, y, w: unrotatedW, h: unrotatedH },
+      },
+    ];
 
-    // Calculate total table width to ensure X position is correct
-    // (Though x calculation above usually handles it, tables can be finicky)
-    return {
-      items: [
-        {
-          type: 'table',
-          zIndex: effectiveZIndex,
-          domOrder,
-          tableData: tableData,
-          options: { x, y, w: unrotatedW, h: unrotatedH },
+    // 1. Check for Background / Shadow / Radius on the table itself
+    const shadowStr = style.boxShadow;
+    const hasShadow = shadowStr && shadowStr !== 'none';
+    const borderRadius = parseFloat(style.borderRadius) || 0;
+    const bgColor = parseColor(style.backgroundColor);
+    const hasBg = bgColor.hex && bgColor.opacity > 0;
+
+    if (hasShadow || borderRadius > 0 || hasBg) {
+      const transparency = (1 - bgColor.opacity) * 100;
+      const shadow = hasShadow ? getVisibleShadow(shadowStr, config.scale) : null;
+      let shapeType = pptx.ShapeType.rect;
+      let rectRadius = 0;
+
+      if (borderRadius > 0) {
+        shapeType = pptx.ShapeType.roundRect;
+        let cappedRadiusPx = Math.min(borderRadius, Math.min(widthPx, heightPx) / 2);
+        rectRadius = cappedRadiusPx * PX_TO_INCH * config.scale;
+      }
+
+      // Add a backing shape item before the table
+      tableItems.unshift({
+        type: 'shape',
+        zIndex: effectiveZIndex,
+        domOrder, // Same domOrder ensures it renders before the table (queue order)
+        shapeType,
+        options: {
+          x,
+          y,
+          w: unrotatedW,
+          h: unrotatedH,
+          fill: hasBg ? { color: bgColor.hex, transparency } : { type: 'none' },
+          shadow,
+          rectRadius,
         },
-      ],
-      stopRecursion: true, // Important: Don't process TR/TD as separate shapes
+      });
+    }
+
+    return {
+      items: tableItems,
+      stopRecursion: true,
     };
   }
 
   if ((node.tagName === 'UL' || node.tagName === 'OL') && !isComplexHierarchy(node)) {
-    const result = renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions);
+    const result = renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style);
     if (result) return result;
+    const listItems = [];
+    const liChildren = Array.from(node.children).filter((c) => c.tagName === 'LI');
+
+    liChildren.forEach((child, index) => {
+      const liStyle = window.getComputedStyle(child);
+      const liRect = child.getBoundingClientRect();
+      const parentRect = node.getBoundingClientRect(); // node is UL/OL
+
+      // 1. Determine Bullet Config
+      let bullet = { type: 'bullet' };
+      const listStyleType = liStyle.listStyleType || 'disc';
+
+      if (node.tagName === 'OL' || listStyleType === 'decimal') {
+        bullet = { type: 'number' };
+      } else if (listStyleType === 'none') {
+        bullet = false;
+      } else {
+        let code = '2022'; // disc
+        if (listStyleType === 'circle') code = '25CB';
+        if (listStyleType === 'square') code = '25A0';
+
+        // --- CHANGE: Color & Size Logic (Option > ::marker > CSS color) ---
+        let finalHex = '000000';
+        let markerFontSize = null;
+
+        // A. Check Global Option override
+        if (globalOptions?.listConfig?.color) {
+          finalHex = parseColor(globalOptions.listConfig.color).hex || '000000';
+        }
+        // B. Check ::marker pseudo element (supported in modern browsers)
+        else {
+          const markerStyle = window.getComputedStyle(child, '::marker');
+          const markerColor = parseColor(markerStyle.color);
+          if (markerColor.hex) {
+            finalHex = markerColor.hex;
+          } else {
+            // C. Fallback to LI text color
+            const colorObj = parseColor(liStyle.color);
+            if (colorObj.hex) finalHex = colorObj.hex;
+          }
+
+          // Check ::marker font-size
+          const markerFs = parseFloat(markerStyle.fontSize);
+          if (!isNaN(markerFs) && markerFs > 0) {
+            // Convert px->pt for PPTX
+            markerFontSize = markerFs * 0.75 * config.scale;
+          }
+        }
+
+        bullet = { code, color: finalHex };
+        if (markerFontSize) {
+          bullet.fontSize = markerFontSize;
+        }
+      }
+
+      // 2. Calculate Dynamic Indent (Respects padding-left)
+      // Visual Indent = Distance from UL left edge to LI Content left edge.
+      // PptxGenJS 'indent' = Space between bullet and text?
+      // Actually PptxGenJS 'indent' allows setting the hanging indent.
+      // We calculate the TOTAL visual offset from the parent container.
+      // 1 px = 0.75 pt (approx, standard DTP).
+      // We must scale it by config.scale.
+      const visualIndentPx = liRect.left - parentRect.left;
+      /*
+         Standard indent in PPT is ~27pt.
+         If visualIndentPx is small (e.g. 10px padding), we want small indent.
+         If visualIndentPx is large (40px padding), we want large indent.
+         We treat 'indent' as the value to pass to PptxGenJS.
+      */
+      const computedIndentPt = visualIndentPx * 0.75 * config.scale;
+
+      if (bullet && computedIndentPt > 0) {
+        bullet.indent = computedIndentPt;
+        // Also support custom margin between bullet and text if provided in listConfig?
+        // For now, computedIndentPt covers the visual placement.
+      }
+
+      // 3. Extract Text Parts
+      const parts = collectTextParts(child, liStyle, config.scale);
+
+      if (parts.length > 0) {
+        parts.forEach((p) => {
+          if (!p.options) p.options = {};
+        });
+
+        // A. Apply Bullet
+        // Workaround: pptxgenjs bullets inherit the style of the text run they are attached to.
+        // To support ::marker styles (color, size) that differ from the text, we create
+        // a "dummy" text run at the start of the list item that carries the bullet configuration.
+        if (bullet) {
+          const firstPartInfo = parts[0].options;
+
+          // Create a dummy run. We use a Zero Width Space to ensure it's rendered but invisible.
+          // This "run" will hold the bullet and its specific color/size.
+          const bulletRun = {
+            text: '\u200B',
+            options: {
+              ...firstPartInfo, // Inherit base props (fontFace, etc.)
+              color: bullet.color || firstPartInfo.color,
+              fontSize: bullet.fontSize || firstPartInfo.fontSize,
+              bullet: bullet,
+            },
+          };
+
+          // Don't duplicate transparent or empty color from firstPart if bullet has one
+          if (bullet.color) bulletRun.options.color = bullet.color;
+          if (bullet.fontSize) bulletRun.options.fontSize = bullet.fontSize;
+
+          // Prepend
+          parts.unshift(bulletRun);
+        }
+
+        // B. Apply Spacing
+        let ptBefore = 0;
+        let ptAfter = 0;
+
+        // A. Check Global Options (Expected in Points)
+        if (globalOptions.listConfig?.spacing) {
+          if (typeof globalOptions.listConfig.spacing.before === 'number') {
+            ptBefore = globalOptions.listConfig.spacing.before;
+          }
+          if (typeof globalOptions.listConfig.spacing.after === 'number') {
+            ptAfter = globalOptions.listConfig.spacing.after;
+          }
+        }
+        // B. Fallback to CSS Margins (Convert px -> pt)
+        else {
+          const mt = parseFloat(liStyle.marginTop) || 0;
+          const mb = parseFloat(liStyle.marginBottom) || 0;
+          if (mt > 0) ptBefore = mt * 0.75 * config.scale;
+          if (mb > 0) ptAfter = mb * 0.75 * config.scale;
+        }
+
+        if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
+        if (ptAfter > 0) parts[0].options.paraSpaceAfter = ptAfter;
+
+        if (index < liChildren.length - 1) {
+          parts[parts.length - 1].options.breakLine = true;
+        }
+
+        listItems.push(...parts);
+      }
+    });
+
+    if (listItems.length > 0) {
+      // Add background if exists
+      const bgColorObj = parseColor(style.backgroundColor);
+      if (bgColorObj.hex && bgColorObj.opacity > 0) {
+        items.push({
+          type: 'shape',
+          zIndex,
+          domOrder,
+          shapeType: 'rect',
+          options: { x, y, w, h, fill: { color: bgColorObj.hex } },
+        });
+      }
+
+      items.push({
+        type: 'text',
+        zIndex: zIndex + 1,
+        domOrder,
+        textParts: listItems,
+        options: {
+          x,
+          y,
+          w,
+          h,
+          align: 'left',
+          valign: 'top',
+          margin: 0,
+          autoFit: true,
+          wrap: true,
+          vert: writingModeVert,
+        },
+      });
+
+      return { items, stopRecursion: true };
+    }
   }
 
   if (node.tagName === 'CANVAS') {
@@ -921,8 +1179,10 @@ function prepareRenderItem(
   const bgColorObj = parseColor(style.backgroundColor);
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
   const isBgClipText = bgClip === 'text';
-  const hasGradient =
-    !isBgClipText && style.backgroundImage && style.backgroundImage.includes('linear-gradient');
+  const bgImgStr = style.backgroundImage;
+  const hasGradient = !isBgClipText && bgImgStr && bgImgStr.includes('linear-gradient');
+  const urlMatch = !isBgClipText && !hasGradient && bgImgStr ? bgImgStr.match(/url\(['"]?(.*?)['"]?\)/) : null;
+  const hasBgImgUrl = !!urlMatch;
 
   const borderColorObj = parseColor(style.borderColor);
   const borderWidth = parseFloat(style.borderWidth);
@@ -1014,7 +1274,7 @@ function prepareRenderItem(
 
       const pt = parseFloat(style.paddingTop) || 0;
       const pb = parseFloat(style.paddingBottom) || 0;
-      if (Math.abs(pt - pb) < 2 && bgColorObj.hex) valign = 'middle';
+      if (Math.abs(pt - pb) < 2) valign = 'middle';
 
       let padding = getPadding(style, intrinsicScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
@@ -1023,46 +1283,81 @@ function prepareRenderItem(
     }
   }
 
-  if (hasGradient || (softEdge && bgColorObj.hex && !isImageWrapper)) {
-    let bgData = null;
-    let padIn = 0;
-    if (softEdge) {
-      const svgInfo = generateBlurredSVG(
-        widthPx,
-        heightPx,
-        bgColorObj.hex,
-        borderRadiusValue,
-        softEdge
-      );
-      bgData = svgInfo.data;
-      padIn = svgInfo.padding * PX_TO_INCH * config.scale;
-    } else {
-      bgData = generateGradientSVG(
-        widthPx,
-        heightPx,
-        style.backgroundImage,
-        borderRadiusValue,
-        hasBorder ? { color: borderColorObj.hex, width: borderWidth } : null
-      );
-    }
+  let bgJob = null;
 
-    if (bgData) {
-      items.push({
+  if (hasBgImgUrl || hasGradient || (softEdge && bgColorObj.hex && !isImageWrapper)) {
+    if (hasBgImgUrl) {
+      const bgUrl = urlMatch[1];
+      const radii = {
+        tl: parseFloat(style.borderTopLeftRadius) || 0,
+        tr: parseFloat(style.borderTopRightRadius) || 0,
+        br: parseFloat(style.borderBottomRightRadius) || 0,
+        bl: parseFloat(style.borderBottomLeftRadius) || 0,
+      };
+
+      const bgItem = {
         type: 'image',
         zIndex,
         domOrder,
-        options: {
-          data: bgData,
-          x: x - padIn,
-          y: y - padIn,
-          w: w + padIn * 2,
-          h: h + padIn * 2,
-          rotate: rotation,
-        },
-      });
+        options: { x, y, w, h, rotate: rotation, data: null },
+      };
+      items.push(bgItem);
+
+      bgJob = async () => {
+        const processed = await getProcessedImage(
+          bgUrl,
+          widthPx,
+          heightPx,
+          radii,
+          style.backgroundSize || 'cover',
+          style.backgroundPosition || '50% 50%'
+        );
+        if (processed) bgItem.options.data = processed;
+        else bgItem.skip = true;
+      };
+    } else {
+      let bgData = null;
+      let padIn = 0;
+      if (softEdge) {
+        const svgInfo = generateBlurredSVG(
+          widthPx,
+          heightPx,
+          bgColorObj.hex,
+          borderRadiusValue,
+          softEdge
+        );
+        bgData = svgInfo.data;
+        padIn = svgInfo.padding * PX_TO_INCH * config.scale;
+      } else {
+        bgData = generateGradientSVG(
+          widthPx,
+          heightPx,
+          style.backgroundImage,
+          hasPartialBorderRadius ? radii : borderRadiusValue,
+          hasBorder ? { color: borderColorObj.hex, width: borderWidth } : null
+        );
+      }
+
+      if (bgData) {
+        items.push({
+          type: 'image',
+          zIndex,
+          domOrder,
+          options: {
+            data: bgData,
+            x: x - padIn,
+            y: y - padIn,
+            w: w + padIn * 2,
+            h: h + padIn * 2,
+            rotate: rotation,
+          },
+        });
+      }
     }
 
     if (textPayload) {
+      textPayload.text[0].options.fontSize =
+        Number(textPayload.text[0]?.options?.fontSize?.toFixed(1)) || 12;
       items.push({
         type: 'text',
         zIndex: zIndex + 1,
@@ -1080,6 +1375,7 @@ function prepareRenderItem(
           margin: 0,
           wrap: true,
           autoFit: true,
+          vert: writingModeVert,
         },
       });
     }
@@ -1171,6 +1467,10 @@ function prepareRenderItem(
       }
 
       if (textPayload) {
+        let cappedRadiusPx = Math.min(radiusPx, minDimension / 2);
+        shapeOpts.rectRadius = cappedRadiusPx * PX_TO_INCH * config.scale;
+        textPayload.text[0].options.fontSize =
+          Number(textPayload.text[0]?.options?.fontSize?.toFixed(1)) || 12;
         const textOptions = {
           shape: shapeType,
           ...shapeOpts,
@@ -1181,6 +1481,7 @@ function prepareRenderItem(
           margin: 0,
           wrap: true,
           autoFit: true,
+          vert: writingModeVert,
         };
         items.push({
           type: 'text',
@@ -1218,7 +1519,7 @@ function prepareRenderItem(
     }
   }
 
-  return { items, stopRecursion: !!textPayload };
+  return { items, job: bgJob, stopRecursion: !!textPayload };
 }
 
 function isComplexHierarchy(root) {
@@ -1251,7 +1552,7 @@ function isComplexHierarchy(root) {
 /**
  * Render UL/OL as native PPTX bullets (simplified)
  */
-function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style, globalOptions) {
+function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style) {
   const listItems = [];
   const liChildren = Array.from(node.children).filter(c => c.tagName === 'LI');
 
@@ -1298,7 +1599,7 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
     zIndex: zIndex + 1,
     domOrder,
     textParts: listItems,
-    options: { x, y, w: w + 0.05, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
+    options: { x, y, w, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
   });
 
   return { items, stopRecursion: true };

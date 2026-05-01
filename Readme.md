@@ -371,6 +371,9 @@ Returns: `Promise<Blob>` - Resolves with the generated PPTX file data (Blob).
 | `svgAsVector`    | `boolean` | `false`         | If `true`, keeps SVG elements as vectors (not rasterized). Enables "Convert to Shape" in PowerPoint.          |
 | `transition`     | `string`  | `undefined`     | Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal).                             |
 | `margin`         | `number`  | `0`             | Slide margin as a fraction (e.g. 0.05 for 5% margin).                                                         |
+| `layout`         | `string`  | `"LAYOUT_16x9"` | Slide layout name (e.g., `LAYOUT_4x3`, `LAYOUT_16x10`, `LAYOUT_WIDE`).                                        |
+| `width`          | `number`  | `10`            | Custom slide width in inches (requires `height` to be set).                                                   |
+| `height`         | `number`  | `5.625`         | Custom slide height in inches (requires `width` to be set).                                                   |
 | `listConfig`     | `object`  | `undefined`     | Global overrides for list styles. Structure: `{ color: string, spacing: { before: number, after: number } }`. |
 
 **List Configuration Example:**

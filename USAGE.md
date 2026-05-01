@@ -123,6 +123,7 @@ If using `<style>` tags, ensure styles are applied correctly during export:
 
 Images must use **complete HTTPS URLs** or **data URLs**, and the server must support CORS:
 
+```html
 <!-- ✅ Correct -->
 <img src="https://images.unsplash.com/photo-xxx?w=400" />
 
