@@ -321,10 +321,11 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     }
   }
 
-  // Force the slide itself to be visible for capture
+  // Force visibility without changing layout mode (e.g. keep flex/grid centering).
+  const rootDisplay = window.getComputedStyle(root).display;
   resets.push(
     tempOverride(root, {
-      display: 'block',
+      display: rootDisplay === 'none' ? 'block' : rootDisplay,
       opacity: '1',
       visibility: 'visible',
       transform: 'none',
