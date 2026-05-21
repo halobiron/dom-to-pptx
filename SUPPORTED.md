@@ -53,7 +53,7 @@ These classes are examples; dom-to-pptx reads computed styles, so any combinatio
 
 To achieve the highest fidelity and most reliable rendering in PowerPoint, consider adopting these HTML/CSS patterns:
 
-- **Layouts (Tables vs. Grid/Flex):** While native HTML `<table>` elements are supported (mapping to PptxGenJS native tables), native tables in PowerPoint can be structurally rigid. For absolute layout control, perfect border-radius, and guaranteed visual consistency, **prefer utilizing a `div` structure with `display: grid` or `display: flex`**. These containers dynamically transform into crisp, independent PowerPoint shapes. 
+- **Layouts (Tables vs. Grid/Flex):** While native HTML `<table>` elements are supported (mapping to PptxGenJS native tables), native tables in PowerPoint can be structurally rigid. For absolute layout control, perfect border-radius, and guaranteed visual consistency, **prefer utilizing a `div` structure with `display: grid` or `display: flex`**. These containers dynamically transform into crisp, independent PowerPoint shapes.
 - **Images and Backgrounds:**
   - `<img src="...">` tags are fully supported and mapped perfectly, taking `object-fit` and `object-position` into consideration.
   - CSS `background-image: url(...)` is also natively parsed. It correctly handles `background-size` (cover/contain) and translates them into matching image crop parameters in PPTX.

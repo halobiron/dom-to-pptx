@@ -9,6 +9,43 @@ All notable changes to this project will be documented in this file.
 - **Slide Transitions**: Added support for global and per-slide transitions (via `options.transition` or `data-transition` attribute). Detects Reveal.js transitions automatically.
 - **Slide Margin**: Added `options.margin` to set a global margin for all slides.
 - **Animation Support (Fragments)**: Full support for Reveal.js fragments. Elements with the `.fragment` class are now converted into native PowerPoint animations (Fade, Fly-in, Zoom, Wipe, etc.).
+## [1.1.9] - 2026-05-16
+
+### Added
+
+- **Native Hyperlink Support**: Implemented recursive hyperlink extraction for `<a>` tags. Maps `href` to PowerPoint URLs and `title` attributes to native tooltips.
+- **Flexbox Axis-Swap Intelligence**: Added `flex-direction` aware alignment. Centering now works correctly for both `row` and `column` flex containers by dynamically swapping `align`/`valign` axes based on the main-axis orientation.
+- **Expanded Text Tag Support**: Added `CENTER`, `P`, and `H1-H6` to the "safe text" whitelist, allowing these elements to render as single unified PowerPoint shapes rather than fragmented items.
+- **Enhanced Agentic Skills (v2.0)**: Re-architected the `dom-to-pptx-skill` into an autonomous presentation engineering framework.
+  - **Atmospheric UI Engine**: Codified premium design philosophies (Luminous Bias, Spatial Tension, Materiality) into the skill directives.
+  - **Multi-Phase Workflow**: Added mandatory phases for Content Intelligence, Theme Engineering, and Pre-Export Validation.
+  - **Local Image Strategy**: Implemented automated local image generation and management using the `images/` directory workflow.
+
+### Fixed
+
+- **Hyperlink Text Styling**: Fixed a bug where text inheriting a hyperlink (from a parent `<a>` tag) was not inheriting the parent's text styling (e.g., font, size, color).
+- **Microsoft PowerPoint Compatibility**: Resolved a critical issue where dangling `[Content_Types].xml` overrides and `STORED` zip formats caused PowerPoint to reject files. All exports are now normalized and re-zipped with `DEFLATE`.
+- **Vertical Text Optimization**: Resolved character spacing gaps in vertical writing modes (`writing-mode: vertical-rl/lr`) and corrected alignment axis mapping for vertical text blocks.
+- **Text Wrap & Width Buffer**: Implemented sub-pixel rect sizing for unrotated elements, preserve offset sizing for rotated elements, floor font sizes to 0.1pt, and add a 1.5% text width buffer to prevent cross-platform wrapping differences.
+- **Redundant Spacing Fix**: Fixed a bug where root element margins were double-applied as internal paragraph spacing. standalone text boxes now align perfectly with their DOM counterparts.
+- **Options**: A new `options.skipNormalize` (default `false`) escape hatch is available for debugging the raw PptxGenJS output.
+- **Full Opacity Inheritance**: Implemented accumulated opacity tracking during DOM traversal, ensuring nested elements and text runs correctly reflect the transparency of parent containers.
+
+## [1.1.8] - 2026-05-03
+
+### Added
+
+- **AI Skills Installer (CLI)**: Added `npx dom-to-pptx-skills` interactive installer to automatically distribute professional PPT creation skills to Claude Code, Gemini CLI, Windsurf, and Cursor.
+- **Smart Agent Auto-Detection**: CLI now scans the home directory to detect installed AI agents and suggests appropriate installation paths.
+- **Premium Design Themes**: Integrated 6 new high-fidelity visual presets (Neo-Brutalism, Soft Pastel, Swiss Minimalism, Nature Eco, Luxury Noir, Cyberpunk Neon) into the skill library.
+- **Structured Prompt Architecture**: Re-architected `SKILL.md` with a "Principal Visual Engineering Director" persona and XML-like `<SLIDE_CONFIG>` templates to improve performance on low-end AI models.
+- **Vertical-Align CSS Support**: Implemented support for the `vertical-align` property. Text can now be explicitly aligned to the `middle` or `bottom` of its container, matching browser rendering.
+
+### Fixed
+
+- **XML Namespace Corruption**: Resolved a critical issue where font embedding generated invalid OpenXML tags in the null namespace. Switched to explicit `createElementNS` and `setAttributeNS` with standard OOXML namespaces to ensure PPTX file integrity.
+- **Vertical Alignment Regression**: Fixed an issue where text in tall block elements (like `<p>` or `<div>` with fixed heights) was incorrectly middle-aligned by default. Standard block elements now correctly default to top-alignment unless flex centering or explicit `vertical-align` is used.
+- **Centered Padding Logic**: Removed aggressive logic that zeroed out padding when text was centered; padding (insets) is now correctly preserved and combined with alignment.
 ## [1.1.7] - 2026-04-21
 
 ### Added
@@ -71,6 +108,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **AutoFit CJK Word Wraps**: Swapped out hard bounding boxes on textual spans to inject `<a:spAutoFit/>`, letting PowerPoint actively grow the block bounds when fluid lines or CJK formats forcefully wrap beyond the original Chrome layout metric.
 - **Text Alignment**: Fixed an issue where text containers were slightly shorter than browser rendering, causing overlap with subsequent elements. Added a precision buffer to account for font metric differences.
 - **Line Breaks**: Fixed an issue where `<br>` tags with surrounding whitespace caused double line breaks in the output.
 - **Missing Elements (Cone Fix)**: Fixed a bug where empty elements with solid backgrounds and partial border radii (e.g., decorative shapes) were skipped during rasterization. We now generate a high-fidelity Vector SVG for these shapes.

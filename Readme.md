@@ -1,6 +1,15 @@
 # dom-to-pptx
 
-**The High-Fidelity HTML to PowerPoint Converter (v1.2.0)**
+**The High-Fidelity HTML to PowerPoint Converter (v1.2.1)**
+
+> [!TIP]
+> **Quick Start for AI Agents (Claude Code, Gemini, Windsurf):**
+> Run `npx dom-to-pptx-skills` to automatically install professional PPT creation skills into your agent's toolkit.
+
+> [!IMPORTANT]
+> **Experience the Power of dom-to-pptx:** Check out **[Preso AI](https://preso-ai.vercel.app)** — an AI-native presentation platform that uses this library to deliver professional, high-fidelity PowerPoint exports from simple text prompts.
+
+---
 
 Most HTML-to-PPTX libraries fail when faced with modern web design. They break on gradients, misalign text, ignore rounded corners, or simply take a screenshot (which isn't editable).
 
@@ -12,6 +21,13 @@ Most HTML-to-PPTX libraries fail when faced with modern web design. They break o
 - **Slide Transitions:** Global and per-slide transitions (Fade, Slide, Zoom, etc.) are now preserved in the PPTX.
 - **Table & Canvas Support:** Native HTML tables and `<canvas>` elements (from libraries like ECharts) are now correctly rendered.
 - **SVG Vector Export:** Keeps SVG elements as vectors for "Convert to Shape" in PowerPoint.
+### 🛠️ Updates in v1.1.9
+
+- **Native Hyperlink Support**: Added support for `<a>` tags with `href` and `title` (tooltip) mapping directly to PowerPoint text runs.
+- **Flexbox Axis-Swap Intelligence**: Fixed centering issues in `flex-direction: column` containers by dynamically swapping alignment axes.
+- **Vertical Text Optimization**: Resolved character-stacking gaps in vertical writing modes and fixed alignment for vertical block containers.
+- **Width Safety Buffers**: Implemented sub-pixel rect sizing for unrotated elements, preserve offset sizing for rotated elements, floor font sizes to 0.1pt, and add a 1.5% text width buffer to prevent cross-platform wrapping differences.
+- **Enhanced Agentic Skills**: The `dom-to-pptx-skill` has been upgraded to v2.0, featuring an "Atmospheric UI" design engine, multi-phase autonomous workflows, and automated local image management.
 
 ## Features
 
@@ -114,10 +130,39 @@ Here's a complete HTML file you can copy and modify:
 That's it! Save this as an `.html` file, open in your browser, and click the button!
 
 ## Installation (For Developers)
+## ✨ Featured Project: Preso AI
+
+**[Preso AI](https://preso-ai.vercel.app)** is a state-of-the-art AI presentation builder built entirely on top of the `dom-to-pptx` engine. It demonstrates the full potential of this library by transforming AI-generated content into premium, editable PowerPoint decks.
+
+- **AI-to-PPTX Workflow**: Turn a single prompt into a 10+ slide high-fidelity presentation.
+- **Atmospheric UI**: Implements the "Atmospheric UI" design system natively.
+- **Pixel-Perfect Exports**: Uses `dom-to-pptx` to ensure every gradient, shadow, and layout is preserved in the final `.pptx` file.
+
+> **Try it now:** [preso-ai.vercel.app](https://preso-ai.vercel.app)
+
+## Installation
 
 ```bash
 npm install @halobiron/dom-to-pptx
 ```
+
+## 🤖 AI Skills Installation (New!)
+
+You can now install the **dom-to-pptx skills** directly into your favorite AI agent (Claude Code, Gemini CLI, Windsurf, etc.) to help it generate high-fidelity presentations.
+
+Run the following command to start the interactive installer:
+
+```bash
+npx dom-to-pptx-skills
+```
+
+The installer will ask you:
+
+1. **Which AI Agent** you are using.
+2. **Installation scope** (Local `.agent/skills` for current project or Global for all projects).
+3. It will then automatically copy the latest optimized prompts and templates to your agent's directory.
+
+---
 
 ## Usage
 
