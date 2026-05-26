@@ -4,6 +4,11 @@ import { fontToEot } from './font-utils.js';
 
 const START_RID = 201314;
 
+const P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const CONTENT_TYPES_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
+const RELS_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
 export class PPTXEmbedFonts {
   constructor() {
     this.zip = null;
@@ -70,7 +75,7 @@ export class PPTXEmbedFonts {
     const hasFntData = defaults.some((el) => el.getAttribute('Extension') === 'fntdata');
 
     if (!hasFntData) {
-      const el = doc.createElement('Default');
+      const el = doc.createElementNS(CONTENT_TYPES_NS, 'Default');
       el.setAttribute('Extension', 'fntdata');
       el.setAttribute('ContentType', 'application/x-fontdata');
       types.insertBefore(el, types.firstChild);
@@ -96,10 +101,12 @@ export class PPTXEmbedFonts {
     let embeddedFontLst = presentation.getElementsByTagName('p:embeddedFontLst')[0];
 
     if (!embeddedFontLst) {
-      embeddedFontLst = doc.createElement('p:embeddedFontLst');
+      embeddedFontLst = doc.createElementNS(P_NS, 'p:embeddedFontLst');
 
       // Insert before defaultTextStyle or at end
-      const defaultTextStyle = presentation.getElementsByTagName('p:defaultTextStyle')[0];
+      const defaultTextStyle =
+        presentation.getElementsByTagName('p:defaultTextStyle')[0] ||
+        presentation.getElementsByTagNameNS(P_NS, 'defaultTextStyle')[0];
       if (defaultTextStyle) {
         presentation.insertBefore(embeddedFontLst, defaultTextStyle);
       } else {
@@ -110,19 +117,23 @@ export class PPTXEmbedFonts {
     // Add font references
     this.fonts.forEach((font) => {
       // Check if already exists
-      const existing = Array.from(embeddedFontLst.getElementsByTagName('p:font')).find(
-        (node) => node.getAttribute('typeface') === font.name
-      );
+      const existing =
+        Array.from(embeddedFontLst.getElementsByTagNameNS(P_NS, 'font')).find(
+          (node) => node.getAttribute('typeface') === font.name
+        ) ||
+        Array.from(embeddedFontLst.getElementsByTagName('p:font')).find(
+          (node) => node.getAttribute('typeface') === font.name
+        );
 
       if (!existing) {
-        const embedFont = doc.createElement('p:embeddedFont');
+        const embedFont = doc.createElementNS(P_NS, 'p:embeddedFont');
 
-        const fontNode = doc.createElement('p:font');
+        const fontNode = doc.createElementNS(P_NS, 'p:font');
         fontNode.setAttribute('typeface', font.name);
         embedFont.appendChild(fontNode);
 
-        const regular = doc.createElement('p:regular');
-        regular.setAttribute('r:id', `rId${font.rid}`);
+        const regular = doc.createElementNS(P_NS, 'p:regular');
+        regular.setAttributeNS(R_NS, 'r:id', `rId${font.rid}`);
         embedFont.appendChild(regular);
 
         embeddedFontLst.appendChild(embedFont);
@@ -142,7 +153,7 @@ export class PPTXEmbedFonts {
     const relationships = doc.getElementsByTagName('Relationships')[0];
 
     this.fonts.forEach((font) => {
-      const rel = doc.createElement('Relationship');
+      const rel = doc.createElementNS(RELS_NS, 'Relationship');
       rel.setAttribute('Id', `rId${font.rid}`);
       rel.setAttribute('Target', `fonts/${font.rid}.fntdata`);
       rel.setAttribute(

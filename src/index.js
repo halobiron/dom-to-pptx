@@ -2,6 +2,7 @@
 import * as PptxGenJSImport from '@bapunhansdah/pptxgenjs';
 import html2canvas from 'html2canvas';
 import { PPTXEmbedFonts } from './font-embedder.js';
+import { normalizePptxZip } from './pptx-normalizer.js';
 import JSZip from 'jszip';
 
 // Normalize import
@@ -73,7 +74,9 @@ function hasVisibleContent(element) {
  */
 function getSlideTransition(element, globalTransition) {
   const transition = element.getAttribute('data-transition') || globalTransition;
-  return transition ? TRANSITION_MAP[transition.toLowerCase()] || null : null;
+  if (!transition) return null;
+  const key = transition.toLowerCase();
+  return TRANSITION_MAP[key] ? key : null;
 }
 
 /**
@@ -130,6 +133,9 @@ async function applyTransitionsToBlob(pptxBlob, slideTransitions) {
  * @param {string} [options.transition] - Global slide transition (fade, slide, convex, concave, zoom, push, wipe, reveal). Overrides Reveal.js config.
  * @param {Array} [options.fonts] - Array of fonts to embed
  * @param {boolean} [options.autoEmbedFonts=false] - Auto-detect and embed fonts
+ * @param {boolean} [options.skipNormalize=false] - If true, skips re-zipping with DEFLATE
+ *   and stripping dangling [Content_Types].xml Overrides. Leave it false unless you are
+ *   debugging the raw PptxGenJS output, otherwise Microsoft PowerPoint may reject the file.
  * @returns {Promise<Blob>} - Returns the generated PPTX Blob
  */
 export async function exportToPptx(target, options = {}) {
@@ -274,16 +280,29 @@ export async function exportToPptx(target, options = {}) {
     }
 
     await embedder.updateFiles();
-    let blobWithFonts = await embedder.generateBlob();
-
-    // Apply transitions
+    if (options.skipNormalize !== true) {
+      await normalizePptxZip(zip);
+    }
+    const blobWithFonts = await embedder.generateBlob();
     finalBlob = await applyTransitionsToBlob(blobWithFonts, slideTransitions);
   } else {
-    // No fonts to embed
-    let initialBlob = await pptx.write({ outputType: 'blob' });
-
-    // Apply transitions
-    finalBlob = await applyTransitionsToBlob(initialBlob, slideTransitions);
+    // No fonts to embed — still re-zip with DEFLATE and strip dangling Overrides
+    // so Microsoft PowerPoint accepts the file (PptxGenJS leaves both issues
+    // unresolved on its own; see 错误诊断.md).
+    const initialBlob = await pptx.write({ outputType: 'blob' });
+    let normalizedBlob;
+    if (options.skipNormalize === true) {
+      normalizedBlob = initialBlob;
+    } else {
+      const zip = await JSZip.loadAsync(initialBlob);
+      await normalizePptxZip(zip);
+      normalizedBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+    }
+    finalBlob = await applyTransitionsToBlob(normalizedBlob, slideTransitions);
   }
 
   // 4. Output Handling
@@ -399,10 +418,11 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   }
 
   // Sync Traversal Function
-  function collect(node, parentZIndex, inheritedAnim = null) {
+  function collect(node, parentZIndex, inheritedAnim = null, parentOpacity = 1) {
     const order = domOrderCounter++;
 
     let currentZ = parentZIndex;
+    let currentOpacity = parentOpacity;
     let nodeStyle = null;
     let currentAnim = inheritedAnim;
     const nodeType = node.nodeType;
@@ -429,10 +449,15 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
         currentAnim = { ...config, order };
       }
 
+      const elOpacity = parseFloat(nodeStyle.opacity);
+      if (!isNaN(elOpacity)) {
+        currentOpacity *= elOpacity;
+      }
+
       // Optimization: Skip completely hidden elements immediately
       if (
         nodeStyle.display === 'none' ||
-        (!isFragment && !currentAnim && (nodeStyle.visibility === 'hidden' || nodeStyle.opacity === '0'))
+        (!isFragment && !currentAnim && (nodeStyle.visibility === 'hidden' || currentOpacity === 0))
       ) {
         return;
       }
@@ -449,7 +474,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
       pptx,
       currentZ,
       nodeStyle,
-      globalOptions
+      { ...globalOptions, _inheritedOpacity: currentOpacity }
     );
 
     if (result) {
@@ -474,12 +499,12 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     // Recurse children synchronously
     const childNodes = node.childNodes;
     for (let i = 0; i < childNodes.length; i++) {
-      collect(childNodes[i], currentZ, currentAnim);
+      collect(childNodes[i], currentZ, currentAnim, currentOpacity);
     }
   }
 
   // 1. Traverse and build the structure (Fast)
-  collect(root, 0, null);
+  collect(root, 0, null, 1);
 
   // 2. Execute all heavy tasks in parallel (Fast)
   if (asyncTasks.length > 0) {
@@ -804,7 +829,12 @@ function prepareRenderItem(
           textParts: [
             {
               text: textContent,
-              options: getTextStyle(style, intrinsicScale),
+              options: getTextStyle(
+                style,
+                config.scale,
+                true,
+                globalOptions._inheritedOpacity || 1
+              ),
             },
           ],
           options: { x, y, w: unrotatedW, h: unrotatedH, margin: 0, autoFit: true },
@@ -821,12 +851,16 @@ function prepareRenderItem(
   const rotation = getRotation(style.transform);
   const writingModeVert = getWritingModeVert(style.writingMode, style.textOrientation);
   const elementOpacity = parseFloat(style.opacity);
-  const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
+  const localOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
+  const inheritedOpacity = globalOptions._inheritedOpacity || 1;
+  const safeOpacity = localOpacity * inheritedOpacity;
 
-  // Use scaled offsetWidth if available, else rect.width
-  const widthPx = node.offsetWidth ? (node.offsetWidth * accScale) : rect.width;
-  const heightPx = node.offsetHeight ? (node.offsetHeight * accScale) : rect.height;
-
+  // Prefer the sub-pixel rect size to avoid 1px text-wrap artifacts caused by
+  // offsetWidth/offsetHeight being integer-rounded. When the element is rotated
+  // we must fall back to offset* because rect.* describes the rotated bounding box.
+  const widthPx = rotation === 0 ? rect.width || node.offsetWidth : node.offsetWidth || rect.width;
+  const heightPx =
+    rotation === 0 ? rect.height || node.offsetHeight : node.offsetHeight || rect.height;
   const unrotatedW = widthPx * PX_TO_INCH * config.scale;
   const unrotatedH = heightPx * PX_TO_INCH * config.scale;
   const centerX = rect.left + rect.width / 2;
@@ -895,186 +929,20 @@ function prepareRenderItem(
   }
 
   if ((node.tagName === 'UL' || node.tagName === 'OL') && !isComplexHierarchy(node)) {
-    const result = renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style);
-    if (result) return result;
-    const listItems = [];
-    const liChildren = Array.from(node.children).filter((c) => c.tagName === 'LI');
-
-    liChildren.forEach((child, index) => {
-      const liStyle = window.getComputedStyle(child);
-      const liRect = child.getBoundingClientRect();
-      const parentRect = node.getBoundingClientRect(); // node is UL/OL
-
-      // 1. Determine Bullet Config
-      let bullet = { type: 'bullet' };
-      const listStyleType = liStyle.listStyleType || 'disc';
-
-      if (node.tagName === 'OL' || listStyleType === 'decimal') {
-        bullet = { type: 'number' };
-      } else if (listStyleType === 'none') {
-        bullet = false;
-      } else {
-        let code = '2022'; // disc
-        if (listStyleType === 'circle') code = '25CB';
-        if (listStyleType === 'square') code = '25A0';
-
-        // --- CHANGE: Color & Size Logic (Option > ::marker > CSS color) ---
-        let finalHex = '000000';
-        let markerFontSize = null;
-
-        // A. Check Global Option override
-        if (globalOptions?.listConfig?.color) {
-          finalHex = parseColor(globalOptions.listConfig.color).hex || '000000';
-        }
-        // B. Check ::marker pseudo element (supported in modern browsers)
-        else {
-          const markerStyle = window.getComputedStyle(child, '::marker');
-          const markerColor = parseColor(markerStyle.color);
-          if (markerColor.hex) {
-            finalHex = markerColor.hex;
-          } else {
-            // C. Fallback to LI text color
-            const colorObj = parseColor(liStyle.color);
-            if (colorObj.hex) finalHex = colorObj.hex;
-          }
-
-          // Check ::marker font-size
-          const markerFs = parseFloat(markerStyle.fontSize);
-          if (!isNaN(markerFs) && markerFs > 0) {
-            // Convert px->pt for PPTX
-            markerFontSize = markerFs * 0.75 * config.scale;
-          }
-        }
-
-        bullet = { code, color: finalHex };
-        if (markerFontSize) {
-          bullet.fontSize = markerFontSize;
-        }
-      }
-
-      // 2. Calculate Dynamic Indent (Respects padding-left)
-      // Visual Indent = Distance from UL left edge to LI Content left edge.
-      // PptxGenJS 'indent' = Space between bullet and text?
-      // Actually PptxGenJS 'indent' allows setting the hanging indent.
-      // We calculate the TOTAL visual offset from the parent container.
-      // 1 px = 0.75 pt (approx, standard DTP).
-      // We must scale it by config.scale.
-      const visualIndentPx = liRect.left - parentRect.left;
-      /*
-         Standard indent in PPT is ~27pt.
-         If visualIndentPx is small (e.g. 10px padding), we want small indent.
-         If visualIndentPx is large (40px padding), we want large indent.
-         We treat 'indent' as the value to pass to PptxGenJS.
-      */
-      const computedIndentPt = visualIndentPx * 0.75 * config.scale;
-
-      if (bullet && computedIndentPt > 0) {
-        bullet.indent = computedIndentPt;
-        // Also support custom margin between bullet and text if provided in listConfig?
-        // For now, computedIndentPt covers the visual placement.
-      }
-
-      // 3. Extract Text Parts
-      const parts = collectTextParts(child, liStyle, config.scale);
-
-      if (parts.length > 0) {
-        parts.forEach((p) => {
-          if (!p.options) p.options = {};
-        });
-
-        // A. Apply Bullet
-        // Workaround: pptxgenjs bullets inherit the style of the text run they are attached to.
-        // To support ::marker styles (color, size) that differ from the text, we create
-        // a "dummy" text run at the start of the list item that carries the bullet configuration.
-        if (bullet) {
-          const firstPartInfo = parts[0].options;
-
-          // Create a dummy run. We use a Zero Width Space to ensure it's rendered but invisible.
-          // This "run" will hold the bullet and its specific color/size.
-          const bulletRun = {
-            text: '\u200B',
-            options: {
-              ...firstPartInfo, // Inherit base props (fontFace, etc.)
-              color: bullet.color || firstPartInfo.color,
-              fontSize: bullet.fontSize || firstPartInfo.fontSize,
-              bullet: bullet,
-            },
-          };
-
-          // Don't duplicate transparent or empty color from firstPart if bullet has one
-          if (bullet.color) bulletRun.options.color = bullet.color;
-          if (bullet.fontSize) bulletRun.options.fontSize = bullet.fontSize;
-
-          // Prepend
-          parts.unshift(bulletRun);
-        }
-
-        // B. Apply Spacing
-        let ptBefore = 0;
-        let ptAfter = 0;
-
-        // A. Check Global Options (Expected in Points)
-        if (globalOptions.listConfig?.spacing) {
-          if (typeof globalOptions.listConfig.spacing.before === 'number') {
-            ptBefore = globalOptions.listConfig.spacing.before;
-          }
-          if (typeof globalOptions.listConfig.spacing.after === 'number') {
-            ptAfter = globalOptions.listConfig.spacing.after;
-          }
-        }
-        // B. Fallback to CSS Margins (Convert px -> pt)
-        else {
-          const mt = parseFloat(liStyle.marginTop) || 0;
-          const mb = parseFloat(liStyle.marginBottom) || 0;
-          if (mt > 0) ptBefore = mt * 0.75 * config.scale;
-          if (mb > 0) ptAfter = mb * 0.75 * config.scale;
-        }
-
-        if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
-        if (ptAfter > 0) parts[0].options.paraSpaceAfter = ptAfter;
-
-        if (index < liChildren.length - 1) {
-          parts[parts.length - 1].options.breakLine = true;
-        }
-
-        listItems.push(...parts);
-      }
-    });
-
-    if (listItems.length > 0) {
-      // Add background if exists
-      const bgColorObj = parseColor(style.backgroundColor);
-      if (bgColorObj.hex && bgColorObj.opacity > 0) {
-        items.push({
-          type: 'shape',
-          zIndex,
-          domOrder,
-          shapeType: 'rect',
-          options: { x, y, w, h, fill: { color: bgColorObj.hex } },
-        });
-      }
-
-      items.push({
-        type: 'text',
-        zIndex: zIndex + 1,
-        domOrder,
-        textParts: listItems,
-        options: {
-          x,
-          y,
-          w,
-          h,
-          align: 'left',
-          valign: 'top',
-          margin: 0,
-          autoFit: true,
-          wrap: true,
-          vert: writingModeVert,
-        },
-      });
-
-      return { items, stopRecursion: true };
-    }
+    return renderListAsBullets(
+      node,
+      x,
+      y,
+      w,
+      h,
+      zIndex,
+      domOrder,
+      config,
+      intrinsicScale,
+      style,
+      globalOptions,
+      writingModeVert
+    );
   }
 
   if (node.tagName === 'CANVAS') {
@@ -1184,7 +1052,8 @@ function prepareRenderItem(
   const isBgClipText = bgClip === 'text';
   const bgImgStr = style.backgroundImage;
   const hasGradient = !isBgClipText && bgImgStr && bgImgStr.includes('linear-gradient');
-  const urlMatch = !isBgClipText && !hasGradient && bgImgStr ? bgImgStr.match(/url\(['"]?(.*?)['"]?\)/) : null;
+  const urlMatch =
+    !isBgClipText && !hasGradient && bgImgStr ? bgImgStr.match(/url\(['"]?(.*?)['"]?\)/) : null;
   const hasBgImgUrl = !!urlMatch;
 
   const borderColorObj = parseColor(style.borderColor);
@@ -1210,77 +1079,48 @@ function prepareRenderItem(
   let textPayload = null;
   const isText = isTextContainer(node);
 
-  // If node contains a UL/OL as a direct child, DON'T treat it as pure text container
-  // Let the UL/OL be processed separately for proper bullet rendering
-  const hasDirectList = Array.from(node.children).some((c) => c.tagName === 'UL' || c.tagName === 'OL');
-
-  if (isText && !hasDirectList) {
-    const textParts = [];
-    let trimNextLeading = false;
-
-    node.childNodes.forEach((child, index) => {
-      // Handle <br> tags
-      if (child.tagName === 'BR') {
-        // 1. Trim trailing space from the *previous* text part to prevent double wrapping
-        if (textParts.length > 0) {
-          const lastPart = textParts[textParts.length - 1];
-          if (lastPart.text && typeof lastPart.text === 'string') {
-            lastPart.text = lastPart.text.trimEnd();
-          }
-        }
-
-        textParts.push({ text: '', options: { breakLine: true } });
-
-        // 2. Signal to trim leading space from the *next* text part
-        trimNextLeading = true;
-        return;
-      }
-
-      let textVal = child.nodeType === 3 ? child.nodeValue : child.textContent;
-      let nodeStyle = child.nodeType === 1 ? window.getComputedStyle(child) : style;
-      // Normalize whitespace: replace newlines/tabs with spaces, but preserve &nbsp; (U+00A0)
-      textVal = textVal.replace(/[\n\r\t]+/g, ' ').replace(/[ \f\v]{2,}/g, ' ');
-
-      // Trimming logic - use smart trim to preserve non-breaking spaces
-      if (index === 0) textVal = smartTrimStart(textVal);
-      if (trimNextLeading) {
-        textVal = smartTrimStart(textVal);
-        trimNextLeading = false;
-      }
-
-      if (index === node.childNodes.length - 1) textVal = textVal.trimEnd();
-      if (nodeStyle.textTransform === 'uppercase') textVal = textVal.toUpperCase();
-      if (nodeStyle.textTransform === 'lowercase') textVal = textVal.toLowerCase();
-
-      if (textVal.length > 0) {
-        const textOpts = getTextStyle(nodeStyle, intrinsicScale);
-
-        // BUG FIX: Numbers 1 and 2 having background.
-        // If this is a naked Text Node (nodeType 3), it inherits style from the parent container.
-        // The parent container's background is already rendered as the Shape Fill.
-        // We must NOT render it again as a Text Highlight, otherwise it looks like a solid marker on top of the shape.
-        if (child.nodeType === 3 && textOpts.highlight) {
-          delete textOpts.highlight;
-        }
-
-        textParts.push({ text: textVal, options: textOpts });
-      }
-    });
+  if (isText) {
+    const textParts = collectTextParts(node, style, config.scale, null, true, inheritedOpacity);
 
     if (textParts.length > 0) {
       let align = style.textAlign || 'left';
       if (align === 'start') align = 'left';
       if (align === 'end') align = 'right';
       let valign = 'top';
-      if (style.alignItems === 'center') valign = 'middle';
-      if (style.justifyContent === 'center' && style.display.includes('flex')) align = 'center';
+      if (style.verticalAlign === 'middle') valign = 'middle';
+      if (style.verticalAlign === 'bottom') valign = 'bottom';
 
-      const pt = parseFloat(style.paddingTop) || 0;
-      const pb = parseFloat(style.paddingBottom) || 0;
-      if (Math.abs(pt - pb) < 2) valign = 'middle';
+      // Fix: Handle Flexbox axis swap for vertical writing modes OR column-direction flex
+      const isVertical = writingModeVert && writingModeVert !== 'none';
+      const isColumn = style.flexDirection === 'column' || style.flexDirection === 'column-reverse';
 
-      let padding = getPadding(style, intrinsicScale);
-      if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
+      if (isVertical || isColumn) {
+        // Vertical Axis Swap (Main axis is vertical)
+        if (style.alignItems === 'center') align = 'center';
+        if (style.alignItems === 'flex-end' || style.alignItems === 'end') align = 'right';
+
+        if (style.justifyContent === 'center' && style.display.includes('flex')) valign = 'middle';
+        if (style.justifyContent === 'flex-end' && style.display.includes('flex'))
+          valign = 'bottom';
+      } else {
+        // Standard Row Axis (Main axis is horizontal)
+        if (style.alignItems === 'center') valign = 'middle';
+        if (style.alignItems === 'flex-end' || style.alignItems === 'end') valign = 'bottom';
+
+        if (style.justifyContent === 'center' && style.display.includes('flex')) align = 'center';
+        if (style.justifyContent === 'flex-end' || style.justifyContent === 'end') {
+          if (style.display.includes('flex')) align = 'right';
+        }
+      }
+
+      // Fix: Suppress lineSpacing for vertical text to prevent improper character gaps
+      if (isVertical) {
+        textParts.forEach((p) => {
+          if (p.options) delete p.options.lineSpacing;
+        });
+      }
+
+      let padding = getPadding(style, config.scale);
 
       textPayload = { text: textParts, align, valign, inset: padding };
     }
@@ -1336,7 +1176,14 @@ function prepareRenderItem(
           widthPx,
           heightPx,
           style.backgroundImage,
-          hasPartialBorderRadius ? radii : borderRadiusValue,
+          hasPartialBorderRadius
+            ? {
+                tl: radii.tl,
+                tr: radii.tr,
+                br: radii.br,
+                bl: radii.bl,
+              }
+            : borderRadiusValue,
           hasBorder ? { color: borderColorObj.hex, width: borderWidth } : null
         );
       }
@@ -1359,8 +1206,9 @@ function prepareRenderItem(
     }
 
     if (textPayload) {
+      const fs0 = textPayload.text[0]?.options?.fontSize;
       textPayload.text[0].options.fontSize =
-        Number(textPayload.text[0]?.options?.fontSize?.toFixed(1)) || 12;
+        typeof fs0 === 'number' ? Math.floor(fs0 * 10) / 10 : 12;
       items.push({
         type: 'text',
         zIndex: zIndex + 1,
@@ -1369,7 +1217,7 @@ function prepareRenderItem(
         options: {
           x,
           y,
-          w,
+          w: w * 1.05, // Safety buffer to prevent wrapping
           h,
           align: textPayload.align,
           valign: textPayload.valign,
@@ -1470,13 +1318,14 @@ function prepareRenderItem(
       }
 
       if (textPayload) {
-        let cappedRadiusPx = Math.min(radiusPx, minDimension / 2);
-        shapeOpts.rectRadius = cappedRadiusPx * PX_TO_INCH * config.scale;
+        const fs0 = textPayload.text[0]?.options?.fontSize;
         textPayload.text[0].options.fontSize =
-          Number(textPayload.text[0]?.options?.fontSize?.toFixed(1)) || 12;
+          typeof fs0 === 'number' ? Math.floor(fs0 * 10) / 10 : 12;
         const textOptions = {
           shape: shapeType,
           ...shapeOpts,
+          w: w * 1.015, // Safety buffer to prevent wrapping
+          h,
           rotate: rotation,
           align: textPayload.align,
           valign: textPayload.valign,
@@ -1555,13 +1404,26 @@ function isComplexHierarchy(root) {
 /**
  * Render UL/OL as native PPTX bullets (simplified)
  */
-function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrinsicScale, style) {
+function renderListAsBullets(
+  node,
+  x,
+  y,
+  w,
+  h,
+  zIndex,
+  domOrder,
+  config,
+  intrinsicScale,
+  style,
+  globalOptions = {},
+  writingModeVert = 'none'
+) {
   const listItems = [];
   const liChildren = Array.from(node.children).filter(c => c.tagName === 'LI');
 
   liChildren.forEach((li, idx) => {
     const liStyle = window.getComputedStyle(li);
-    const bullet = getBulletConfig(node, li, liStyle);
+    const bullet = getBulletConfig(node, li, liStyle, globalOptions, config.scale);
 
     if (bullet) {
       const visualIndent = (li.getBoundingClientRect().left - node.getBoundingClientRect().left) * 0.75 * config.scale;
@@ -1580,10 +1442,14 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
       });
     }
 
+    const spacing = globalOptions?.listConfig?.spacing || null;
     const mt = parseFloat(liStyle.marginTop) || 0;
     const mb = parseFloat(liStyle.marginBottom) || 0;
-    if (mt > 0) parts[0].options.paraSpaceBefore = mt * 0.75 * intrinsicScale;
-    if (mb > 0) parts[0].options.paraSpaceAfter = mb * 0.75 * intrinsicScale;
+    const ptBefore = typeof spacing?.before === 'number' ? spacing.before : mt * 0.75 * intrinsicScale;
+    const ptAfter = typeof spacing?.after === 'number' ? spacing.after : mb * 0.75 * intrinsicScale;
+
+    if (ptBefore > 0) parts[0].options.paraSpaceBefore = ptBefore;
+    if (ptAfter > 0) parts[0].options.paraSpaceAfter = ptAfter;
     if (idx < liChildren.length - 1) parts[parts.length - 1].options.breakLine = true;
 
     listItems.push(...parts);
@@ -1602,14 +1468,14 @@ function renderListAsBullets(node, x, y, w, h, zIndex, domOrder, config, intrins
     zIndex: zIndex + 1,
     domOrder,
     textParts: listItems,
-    options: { x, y, w, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true }
+    options: { x, y, w, h, align: 'left', valign: 'top', margin: 0, autoFit: true, wrap: true, vert: writingModeVert }
   });
 
   return { items, stopRecursion: true };
 }
 
 /** Get bullet config for a list item */
-function getBulletConfig(node, li, liStyle) {
+function getBulletConfig(node, li, liStyle, globalOptions = {}, scale = 1) {
   let listStyleType = liStyle.listStyleType || 'disc';
 
   // Check for custom icons from ::before
@@ -1629,7 +1495,21 @@ function getBulletConfig(node, li, liStyle) {
   if (listStyleType === 'none') return null;
 
   const charMap = { disc: '2022', circle: '25CB', square: '25A0' };
-  return { type: 'bullet', char: charMap[listStyleType] || charMap.disc, color: '#000000' };
+  let color = parseColor(globalOptions?.listConfig?.color).hex || null;
+  let fontSize = null;
+
+  if (!color) {
+    const markerStyle = window.getComputedStyle(li, '::marker');
+    color = parseColor(markerStyle.color).hex || parseColor(liStyle.color).hex || '000000';
+    const markerFontSize = parseFloat(markerStyle.fontSize);
+    if (!isNaN(markerFontSize) && markerFontSize > 0) {
+      fontSize = markerFontSize * 0.75 * scale;
+    }
+  }
+
+  const bullet = { type: 'bullet', code: charMap[listStyleType] || charMap.disc, color };
+  if (fontSize) bullet.fontSize = fontSize;
+  return bullet;
 }
 
 function collectListParts(node, parentStyle, scale) {

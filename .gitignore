@@ -1,12 +1,34 @@
-node_modules
-.DS_Store
-.git
-test-playground
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
-.vscode
-dist
+
+# OS / system files
+.DS_Store
+
+# IDE / editor
+.vscode/
+
+# Build output
+dist/
+
+# Git internal (usually not needed, but kept as requested)
+.git/
+
+# Project-specific files & folders
+test-playground/
+demo/
+exported-pptx/
+.agent/
+
+# Test files (wildcards)
+test*
+scratch*
+
+# Misc files
 ins.md
 code_context.txt
-demo
-exported-pptx
-test*
+
+# Temp / backup files
+*~

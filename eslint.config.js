@@ -3,13 +3,25 @@ import pluginJs from '@eslint/js';
 import pluginPrettier from 'eslint-config-prettier';
 
 export default [
-  { ignores: ['dist/**'] },
-  { files: ['**/*.js'], languageOptions: { sourceType: 'module', globals: globals.browser } },
+  { ignores: ['dist/**', 'scratch/**'] },
+  {
+    files: ['**/*.js'],
+    languageOptions: { sourceType: 'module', globals: { ...globals.browser } },
+  },
+  {
+    files: [
+      'bin/**/*.js',
+      'scripts/**/*.js',
+      'rollup.config.js',
+      'vitest.config.js',
+      'eslint.config.js',
+    ],
+    languageOptions: { globals: { ...globals.node } },
+  },
   pluginJs.configs.recommended,
   pluginPrettier,
   {
     rules: {
-      // Custom rules or overrides
       'no-unused-vars': 'warn',
       'no-undef': 'warn',
     },

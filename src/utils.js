@@ -72,8 +72,10 @@ export function extractTableData(node, scale, intrinsicScale = scale) {
       const style = window.getComputedStyle(cell);
       const cellParts = collectTextParts(cell, style, scale);
       // Fallback to plain text if collectTextParts returns empty/invalid
-      const cellText = (cellParts && cellParts.length > 0) ? cellParts
-        : cell.innerText.replace(/[\n\r\t]+/g, ' ').trim();
+      const cellText =
+        cellParts && cellParts.length > 0
+          ? cellParts
+          : cell.innerText.replace(/[\n\r\t]+/g, ' ').trim();
 
       // A. Text Style
       const textStyle = getTextStyle(style, intrinsicScale);
@@ -463,9 +465,16 @@ export function getSoftEdges(filterStr, scale) {
   return null;
 }
 
-export function getTextStyle(style, scale) {
+export function getTextStyle(style, scale, includeMargins = true, inheritedOpacity = 1) {
   let colorObj = parseColor(style.color);
   const backgroundColor = parseColor(style.backgroundColor);
+  let opacity = colorObj.opacity * inheritedOpacity;
+
+  // Combine text color alpha with element-level opacity
+  const elOpacity = parseFloat(style.opacity);
+  if (!isNaN(elOpacity)) {
+    opacity *= elOpacity;
+  }
 
   const bgClip = style.webkitBackgroundClip || style.backgroundClip;
   if (colorObj.opacity === 0 && bgClip === 'text') {
@@ -499,16 +508,21 @@ export function getTextStyle(style, scale) {
   let paraSpaceBefore = 0;
   let paraSpaceAfter = 0;
 
-  const mt = parseFloat(style.marginTop) || 0;
-  const mb = parseFloat(style.marginBottom) || 0;
+  if (includeMargins) {
+    const mt = parseFloat(style.marginTop) || 0;
+    const mb = parseFloat(style.marginBottom) || 0;
 
-  if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
-  if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
+    if (mt > 0) paraSpaceBefore = mt * 0.75 * scale;
+    if (mb > 0) paraSpaceAfter = mb * 0.75 * scale;
+  }
+
+  const transparency = Math.round((1 - opacity) * 100);
 
   return {
     color: colorObj.hex || '000000',
+    ...(transparency > 0 && { transparency }),
     fontFace: style.fontFamily.split(',')[0].replace(/['"]/g, ''),
-    fontSize: Number((fontSizePx * 0.75 * scale).toFixed(1)),
+    fontSize: Math.floor(fontSizePx * 0.75 * scale * 10) / 10,
     bold: parseInt(style.fontWeight) >= 600,
     italic: style.fontStyle === 'italic',
     underline: style.textDecoration.includes('underline'),
@@ -885,7 +899,10 @@ export function generateGradientSVG(w, h, bgString, radius, border) {
       strokeAttr = `stroke="#${border.color}" stroke-width="${border.width}"`;
     }
 
-    let tl = 0, tr = 0, br = 0, bl = 0;
+    let tl = 0,
+      tr = 0,
+      br = 0,
+      bl = 0;
     if (typeof radius === 'object' && radius !== null) {
       tl = radius.tl || 0;
       tr = radius.tr || 0;
@@ -903,7 +920,10 @@ export function generateGradientSVG(w, h, bgString, radius, border) {
     );
 
     if (factor < 1) {
-      tl *= factor; tr *= factor; br *= factor; bl *= factor;
+      tl *= factor;
+      tr *= factor;
+      br *= factor;
+      bl *= factor;
     }
 
     // Generate absolute path based on radius bounds
@@ -1077,8 +1097,28 @@ export function tempOverride(el, styles) {
     }
   };
 }
-export function collectTextParts(node, parentStyle, scale) {
+
+export function collectTextParts(
+  node,
+  parentStyle,
+  scale,
+  activeHyperlink = null,
+  isRoot = true,
+  inheritedOpacity = 1
+) {
   const parts = [];
+  let hyperlink = activeHyperlink;
+
+  // Hyperlink inheritance: If no hyperlink is active, check if this node is an <a> or inside one.
+  if (!hyperlink && node.nodeType === 1) {
+    const aNode = node.closest('a');
+    if (aNode) {
+      const href = aNode.getAttribute('href');
+      if (href) {
+        hyperlink = { url: href, tooltip: aNode.getAttribute('title') || undefined };
+      }
+    }
+  }
 
   // Check for CSS Content (::before) - often used for icons
   if (node.nodeType === 1) {
@@ -1088,9 +1128,12 @@ export function collectTextParts(node, parentStyle, scale) {
       // Strip quotes
       const cleanContent = content.replace(/^['"]|['"]$/g, '');
       if (cleanContent.trim()) {
+        const textOpts = getTextStyle(window.getComputedStyle(node), scale);
+        if (hyperlink) textOpts.hyperlink = hyperlink;
+
         parts.push({
           text: cleanContent + ' ', // Add space after icon
-          options: getTextStyle(window.getComputedStyle(node), scale),
+          options: textOpts,
         });
       }
     }
@@ -1118,9 +1161,18 @@ export function collectTextParts(node, parentStyle, scale) {
         else if (transform === 'lowercase') val = val.toLowerCase();
         else if (transform === 'capitalize') val = val.replace(/\b\w/g, (c) => c.toUpperCase());
 
+        const textOpts = getTextStyle(styleToUse, scale, !isRoot, inheritedOpacity);
+        if (hyperlink) textOpts.hyperlink = hyperlink;
+
+        // BUG FIX: Avoid rendering the parent's background as a text highlight for naked text nodes.
+        // The parent container's background is typically already rendered as a Shape Fill.
+        if (child.nodeType === 3 && textOpts.highlight) {
+          delete textOpts.highlight;
+        }
+
         parts.push({
           text: val,
-          options: getTextStyle(styleToUse, scale),
+          options: textOpts,
         });
       }
     } else if (child.nodeType === 1) {
@@ -1139,7 +1191,14 @@ export function collectTextParts(node, parentStyle, scale) {
           parts.push({ text: '', options: { breakLine: true } });
         }
 
-        const childParts = collectTextParts(child, parentStyle, scale);
+        const childParts = collectTextParts(
+          child,
+          parentStyle,
+          scale,
+          hyperlink,
+          false,
+          inheritedOpacity
+        );
         if (childParts.length > 0) parts.push(...childParts);
 
         if (isBlock) {
@@ -1151,7 +1210,11 @@ export function collectTextParts(node, parentStyle, scale) {
   });
 
   // Cleanup potential trailing empty breakLines
-  while (parts.length > 0 && parts[parts.length - 1].options?.breakLine && parts[parts.length - 1].text === '') {
+  while (
+    parts.length > 0 &&
+    parts[parts.length - 1].options?.breakLine &&
+    parts[parts.length - 1].text === ''
+  ) {
     parts.pop();
   }
 
