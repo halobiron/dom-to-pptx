@@ -1,0 +1,278 @@
+# Instincts generated from https://github.com/halobiron/dom-to-pptx
+# Generated: 2026-05-26T15:28:19.749Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: dom-to-pptx-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Commit Length
+
+## Action
+
+Keep commit messages concise (~12 characters)
+
+## Evidence
+
+- Average commit message length: 12 chars
+- Based on 1 commits
+
+---
+id: dom-to-pptx-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: dom-to-pptx-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: dom-to-pptx-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: dom-to-pptx-instinct-file-naming-camelCase
+trigger: "When creating a new file in the repository"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct File Naming CamelCase
+
+## Action
+
+Name the file using camelCase convention
+
+## Evidence
+
+- Pattern in namingConventions.files
+
+---
+id: dom-to-pptx-instinct-function-naming-camelCase
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Function Naming CamelCase
+
+## Action
+
+Use camelCase for the function name
+
+## Evidence
+
+- Pattern in namingConventions.functions
+
+---
+id: dom-to-pptx-instinct-class-naming-pascalCase
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Class Naming PascalCase
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: dom-to-pptx-instinct-constant-naming-screamingSnakeCase
+trigger: "When declaring a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Constant Naming ScreamingSnakeCase
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: dom-to-pptx-instinct-import-relative
+trigger: "When importing modules within the project"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Import Relative
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle
+
+---
+id: dom-to-pptx-instinct-export-named
+trigger: "When exporting modules or functions"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Export Named
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle
+
+---
+id: dom-to-pptx-instinct-test-location-mixed
+trigger: "When adding new tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Test Location Mixed
+
+## Action
+
+Place test files either alongside source files or in the __tests__ folder
+
+## Evidence
+
+- Pattern in folderStructure.testLocation
+- Pattern in folderStructure.srcLayout
+
+---
+id: dom-to-pptx-instinct-test-folder-naming
+trigger: "When creating a dedicated test folder"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Test Folder Naming
+
+## Action
+
+Name the folder __tests__
+
+## Evidence
+
+- Pattern in folderStructure.srcLayout
+
+---
+id: dom-to-pptx-instinct-commit-message-freeform
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Commit Message Freeform
+
+## Action
+
+Use a freeform, short commit message without a required prefix
+
+## Evidence
+
+- Pattern in commits.type
+- Example: 'first commit'
+
+---
+id: dom-to-pptx-instinct-error-handling-try-catch
+trigger: "When handling potential errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: halobiron/dom-to-pptx
+---
+
+# Dom To Pptx Instinct Error Handling Try Catch
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style
+
