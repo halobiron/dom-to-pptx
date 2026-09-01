@@ -28,6 +28,16 @@ We welcome contributions to `dom-to-pptx`! To ensure a smooth and effective coll
 
 5.  **Make Your Changes:** Implement your feature or bug fix. Ensure your code adheres to the project's coding style and passes all tests.
 
+    **Note for New Contributors:** Please add your details to:
+    - The `"contributors"` array in `package.json` as an object containing your name and GitHub profile URL (so you are credited on NPM without exposing your personal email):
+      ```json
+      {
+        "name": "Your Name",
+        "url": "https://github.com/username"
+      }
+      ```
+    - The list in `CONTRIBUTORS.md` (using the format `- [Name](https://github.com/username)`).
+
 6.  **Run Tests:** Before submitting, run the tests to ensure everything is working correctly:
 
     ```bash

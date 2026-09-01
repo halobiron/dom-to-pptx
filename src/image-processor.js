@@ -1,13 +1,6 @@
 // src/image-processor.js
 
-export async function getProcessedImage(
-  src,
-  targetW,
-  targetH,
-  radius,
-  objectFit = 'fill',
-  objectPosition = '50% 50%'
-) {
+export async function getProcessedImage(src, targetW, targetH, radius, objectFit = 'fill', objectPosition = '50% 50%') {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
